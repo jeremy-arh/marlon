@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import Icon from '@/components/Icon';
@@ -8,6 +8,14 @@ import Link from 'next/link';
 import { LOGO_URL } from '@/lib/constants';
 
 export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-gray-400" /></div>}>
+      <AuthCallbackContent />
+    </Suspense>
+  );
+}
+
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);

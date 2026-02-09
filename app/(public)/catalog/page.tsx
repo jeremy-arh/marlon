@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import CatalogClient from './CatalogClient';
 
@@ -71,13 +72,15 @@ export default async function CatalogPage() {
   });
 
   return (
-    <CatalogClient 
-      initialCategories={categories || []} 
-      categoryProductTypes={categoryProductTypes}
-      categorySpecialties={categorySpecialties}
-      categoryItTypes={categoryItTypes}
-      specialties={specialties || []}
-      itTypes={itTypes || []}
-    />
+    <Suspense fallback={<div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" /></div>}>
+      <CatalogClient 
+        initialCategories={categories || []} 
+        categoryProductTypes={categoryProductTypes}
+        categorySpecialties={categorySpecialties}
+        categoryItTypes={categoryItTypes}
+        specialties={specialties || []}
+        itTypes={itTypes || []}
+      />
+    </Suspense>
   );
 }

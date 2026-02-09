@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn } from '@/lib/utils/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +9,14 @@ import Icon from '@/components/Icon';
 const ILLUSTRATION_URL = 'https://qdnwppnrqpiquxboskos.supabase.co/storage/v1/object/public/static-assets/connection%201.svg';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-gray-400" /></div>}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');

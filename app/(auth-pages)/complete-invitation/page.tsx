@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -23,6 +23,14 @@ interface InvitationData {
 }
 
 export default function CompleteInvitationPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Icon icon="mdi:loading" className="h-6 w-6 animate-spin text-marlon-green" /></div>}>
+      <CompleteInvitationContent />
+    </Suspense>
+  );
+}
+
+function CompleteInvitationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');

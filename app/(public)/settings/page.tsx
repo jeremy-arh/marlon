@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import PageHeader from '@/components/PageHeader';
@@ -48,6 +48,14 @@ const TABS = [
 ];
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]"><Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" /></div>}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
