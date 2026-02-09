@@ -1,0 +1,1084 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Icon } from '@iconify/react';
+import Button from '@/components/Button';
+import SearchableSelect from '@/components/SearchableSelect';
+import MultiSelect from '@/components/MultiSelect';
+import RichTextEditor from '@/components/RichTextEditor';
+import ImageUpload from '@/components/ImageUpload';
+
+interface ProductDocument {
+  id?: string;
+  name: string;
+  file_url: string;
+  file_type: string;
+  description?: string;
+  isNew?: boolean;
+}
+
+interface ProductFormProps {
+  product?: any;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const FILE_TYPE_OPTIONS = [
+  { value: 'pdf', label: 'PDF' },
+  { value: 'manual', label: 'Manuel utilisateur' },
+  { value: 'guide', label: 'Guide de démarrage' },
+  { value: 'warranty', label: 'Garantie' },
+  { value: 'certificate', label: 'Certificat' },
+  { value: 'datasheet', label: 'Fiche technique' },
+];
+
+export default function ProductForm({ product, onSuccess, onCancel }: ProductFormProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [leasers, setLeasers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<any[]>([]);
+  const [specialties, setSpecialties] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<ProductDocument[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [newDocForm, setNewDocForm] = useState({ name: '', file_url: '', file_type: 'pdf', description: '' });
+  const [variantFilters, setVariantFilters] = useState<any[]>([]);
+  const [productVariants, setProductVariants] = useState<any[]>([]);
+  const [editingVariant, setEditingVariant] = useState<any | null>(null);
+  const [leaserDurations, setLeaserDurations] = useState<any[]>([]);
+  const [formData, setFormData] = useState({
+    name: product?.name || '',
+    reference: product?.reference || '',
+    description: product?.description || '',
+    technical_info: product?.technical_info || '',
+    product_type: product?.product_type || '',
+    serial_number: product?.serial_number || '',
+    purchase_price_ht: product?.purchase_price_ht?.toString() || '',
+    marlon_margin_percent: product?.marlon_margin_percent?.toString() || '',
+    supplier_id: product?.supplier_id || '',
+    brand_id: product?.brand_id || '',
+    default_leaser_id: product?.default_leaser_id || '',
+    category_ids: [],
+    specialty_ids: [],
+    images: [],
+    variant_filter_ids: [],
+  });
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/admin/brands').then(r => r.json()),
+      fetch('/api/admin/suppliers').then(r => r.json()),
+      fetch('/api/admin/leasers').then(r => r.json()),
+      fetch('/api/admin/categories/list').then(r => r.json()),
+      fetch('/api/admin/specialties').then(r => r.json()),
+      fetch('/api/admin/product-variant-filters').then(r => r.json()),
+      fetch('/api/admin/leasing-durations').then(r => r.json()),
+    ]).then(([brandsData, suppliersData, leasersData, categoriesData, specialtiesData, filtersData, durationsData]) => {
+      if (brandsData.success) setBrands(brandsData.data || []);
+      if (suppliersData.success) setSuppliers(suppliersData.data || []);
+      if (leasersData.success) setLeasers(leasersData.data || []);
+      if (categoriesData.success) {
+        const allCategories = categoriesData.data || [];
+        setCategories(allCategories);
+        // Filtrer selon le type de produit initial
+        if (product?.product_type) {
+          setFilteredCategories(allCategories.filter((cat: any) => cat.product_type === product.product_type));
+        } else {
+          setFilteredCategories(allCategories);
+        }
+      }
+      if (specialtiesData.success) setSpecialties(specialtiesData.data || []);
+      if (filtersData.success) setVariantFilters(filtersData.data || []);
+      if (durationsData.success) setLeaserDurations(durationsData.data || []);
+    });
+
+    // Load product data if editing
+    if (product) {
+      // Load product images
+      if (product.product_images && Array.isArray(product.product_images)) {
+        const sortedImages = [...product.product_images]
+          .sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+          .map((img: any) => img.image_url);
+        setFormData(prev => ({ ...prev, images: sortedImages }));
+      }
+
+      // Load product categories
+      if (product.product_categories && Array.isArray(product.product_categories)) {
+        const categoryIds = product.product_categories.map((pc: any) => pc.category_id);
+        setFormData(prev => ({ ...prev, category_ids: categoryIds }));
+      }
+
+      // Load product specialties
+      if (product.product_specialties && Array.isArray(product.product_specialties)) {
+        const specialtyIds = product.product_specialties.map((ps: any) => ps.specialty_id);
+        setFormData(prev => ({ ...prev, specialty_ids: specialtyIds }));
+      }
+
+      // Load product documents
+      loadProductDocuments(product.id);
+
+      // Load product variants
+      if (product.product_type === 'it_equipment') {
+        loadProductVariants(product.id);
+      }
+
+      // Load variant filter IDs
+      if (product.variant_filter_ids && Array.isArray(product.variant_filter_ids)) {
+        setFormData(prev => ({ ...prev, variant_filter_ids: product.variant_filter_ids }));
+      }
+    }
+  }, [product]);
+
+  // Filtrer les catégories selon le type de produit
+  useEffect(() => {
+    if (formData.product_type) {
+      const filtered = categories.filter((cat: any) => cat.product_type === formData.product_type);
+      setFilteredCategories(filtered);
+      // Désélectionner les catégories qui ne correspondent plus au type
+      const validCategoryIds = filtered.map((cat: any) => cat.id);
+      const updatedCategoryIds = formData.category_ids.filter((id: string) => validCategoryIds.includes(id));
+      if (updatedCategoryIds.length !== formData.category_ids.length) {
+        setFormData(prev => ({ ...prev, category_ids: updatedCategoryIds }));
+      }
+    } else {
+      setFilteredCategories(categories);
+    }
+  }, [formData.product_type, categories]);
+
+  // Recalculer les prix des variantes quand le leaser change
+  useEffect(() => {
+    if (formData.product_type === 'it_equipment' && formData.default_leaser_id && productVariants.length > 0) {
+      productVariants.forEach((variant, index) => {
+        if (variant.purchase_price_ht && variant.marlon_margin_percent) {
+          setTimeout(() => {
+            calculateVariantPrice(index, variant.purchase_price_ht, variant.marlon_margin_percent);
+          }, 500);
+        }
+      });
+    }
+  }, [formData.default_leaser_id]);
+
+  const loadProductDocuments = async (productId: string) => {
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/documents`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        setDocuments(data.data.map((doc: any) => ({ ...doc, isNew: false })));
+      }
+    } catch (err) {
+      console.error('Error loading documents:', err);
+    }
+  };
+
+  const loadProductVariants = async (productId: string) => {
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/variants`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        // S'assurer que les images sont un tableau
+        const variantsWithImages = data.data.map((variant: any) => ({
+          ...variant,
+          images: Array.isArray(variant.images) ? variant.images : [],
+          stock_quantity: variant.stock_quantity !== null && variant.stock_quantity !== undefined ? variant.stock_quantity : 0,
+        }));
+        setProductVariants(variantsWithImages);
+      }
+    } catch (err) {
+      console.error('Error loading variants:', err);
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingDoc(true);
+
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const extension = file.name.split('.').pop() || 'pdf';
+    const uniqueFilename = `${timestamp}-${randomStr}.${extension}`;
+    const tempPath = `temp/${uniqueFilename}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', 'product-documents');
+    formData.append('path', tempPath);
+
+    try {
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.url) {
+        setNewDocForm(prev => ({
+          ...prev,
+          file_url: data.url,
+          name: prev.name || file.name.replace(/\.[^/.]+$/, ''),
+        }));
+      } else {
+        alert('Erreur lors de l\'upload: ' + (data.error || 'Erreur inconnue'));
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Erreur lors de l\'upload du fichier');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleAddDocument = () => {
+    if (!newDocForm.name || !newDocForm.file_url) return;
+
+    setDocuments(prev => [...prev, { ...newDocForm, isNew: true }]);
+    setNewDocForm({ name: '', file_url: '', file_type: 'pdf', description: '' });
+  };
+
+  const handleRemoveDocument = (index: number) => {
+    setDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const saveDocuments = async (productId: string) => {
+    // Save new documents
+    const newDocs = documents.filter(doc => doc.isNew);
+    for (const doc of newDocs) {
+      await fetch(`/api/admin/products/${productId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: doc.name,
+          file_url: doc.file_url,
+          file_type: doc.file_type,
+          description: doc.description,
+        }),
+      });
+    }
+  };
+
+  const saveVariants = async (productId: string) => {
+    // Save/update variants
+    for (const variant of productVariants) {
+      const variantPayload: any = {
+        sku: variant.sku,
+        purchase_price_ht: variant.purchase_price_ht ? parseFloat(variant.purchase_price_ht.toString()) : null,
+        marlon_margin_percent: variant.marlon_margin_percent ? parseFloat(variant.marlon_margin_percent.toString()) : null,
+        is_active: variant.is_active !== undefined ? variant.is_active : true,
+        stock_quantity: variant.stock_quantity !== undefined ? variant.stock_quantity : 0,
+        images: Array.isArray(variant.images) ? variant.images : [],
+        variant_data: variant.variant_data || {},
+      };
+
+      if (variant.id) {
+        // Update existing variant
+        await fetch(`/api/admin/products/${productId}/variants`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            variant_id: variant.id,
+            ...variantPayload,
+          }),
+        });
+      } else {
+        // Create new variant
+        await fetch(`/api/admin/products/${productId}/variants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(variantPayload),
+        });
+      }
+    }
+  };
+
+  const handleAddVariant = () => {
+    setProductVariants(prev => [...prev, {
+      variant_data: {},
+      sku: '',
+      purchase_price_ht: '',
+      marlon_margin_percent: formData.marlon_margin_percent || '',
+      is_active: true,
+      stock_quantity: 0,
+      images: [],
+      calculated_monthly_price: null,
+      calculated_total_price: null,
+      coefficient_used: null,
+    }]);
+  };
+
+  const handleUpdateVariant = (index: number, field: string, value: any) => {
+    setProductVariants(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      
+      // Si on modifie le prix HT ou la marge, recalculer le prix mensuel
+      if (field === 'purchase_price_ht' || field === 'marlon_margin_percent') {
+        const variant = updated[index];
+        const purchasePrice = variant.purchase_price_ht || '';
+        const marginPercent = variant.marlon_margin_percent || formData.marlon_margin_percent || '';
+        
+        if (purchasePrice && marginPercent && formData.default_leaser_id) {
+          // Délai pour éviter trop de calculs
+          setTimeout(() => {
+            calculateVariantPrice(index, purchasePrice, marginPercent);
+          }, 500);
+        } else {
+          // Réinitialiser si les données manquent
+          updated[index] = {
+            ...updated[index],
+            calculated_monthly_price: null,
+            calculated_total_price: null,
+            coefficient_used: null,
+          };
+        }
+      }
+      
+      return updated;
+    });
+  };
+
+  const handleUpdateVariantFilter = (variantIndex: number, filterId: string, optionValue: string) => {
+    setProductVariants(prev => {
+      const updated = [...prev];
+      const variant = updated[variantIndex];
+      const filter = variantFilters.find(f => f.id === filterId);
+      
+      if (filter) {
+        variant.variant_data = {
+          ...variant.variant_data,
+          [filter.name]: optionValue,
+        };
+      }
+      
+      return updated;
+    });
+  };
+
+  const calculateVariantPrice = async (index: number, purchasePrice: number, marginPercent: number) => {
+    if (!formData.default_leaser_id || !purchasePrice || !marginPercent) {
+      // Réinitialiser les prix calculés si les données manquent
+      setProductVariants(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          calculated_monthly_price: null,
+          calculated_total_price: null,
+          coefficient_used: null,
+        };
+        return updated;
+      });
+      return;
+    }
+
+    try {
+      const sellingPrice = parseFloat(purchasePrice.toString()) * (1 + parseFloat(marginPercent.toString()) / 100);
+      
+      // Utiliser la durée la plus longue par défaut (60 mois)
+      const defaultDuration = leaserDurations.find(d => d.months === 60) || leaserDurations[leaserDurations.length - 1];
+      if (!defaultDuration) return;
+
+      // Utiliser la fonction de calcul côté serveur
+      const response = await fetch('/api/admin/products/calculate-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purchase_price_ht: parseFloat(purchasePrice.toString()),
+          marlon_margin_percent: parseFloat(marginPercent.toString()),
+          leaser_id: formData.default_leaser_id,
+          duration_months: defaultDuration.months,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        const { monthlyPrice, totalPrice, coefficient } = data.data;
+
+        setProductVariants(prev => {
+          const updated = [...prev];
+          updated[index] = {
+            ...updated[index],
+            calculated_monthly_price: monthlyPrice,
+            calculated_total_price: totalPrice,
+            coefficient_used: coefficient,
+          };
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Error calculating variant price:', err);
+    }
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    setProductVariants(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const url = product ? `/api/admin/products/${product.id}` : '/api/admin/products';
+      const method = product ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          purchase_price_ht: parseFloat(formData.purchase_price_ht),
+          marlon_margin_percent: parseFloat(formData.marlon_margin_percent),
+          supplier_id: formData.supplier_id || null,
+          brand_id: formData.brand_id || null,
+          default_leaser_id: formData.default_leaser_id || null,
+          product_type: formData.product_type || null,
+          serial_number: formData.serial_number || null,
+          technical_info: formData.technical_info || null,
+          category_ids: formData.category_ids,
+          specialty_ids: formData.product_type === 'medical_equipment' ? formData.specialty_ids : [],
+          images: formData.images,
+          variant_filter_ids: formData.product_type === 'it_equipment' ? formData.variant_filter_ids : [],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Erreur lors de la sauvegarde');
+        setLoading(false);
+        return;
+      }
+
+      // Save documents
+      const productId = product?.id || data.data?.id;
+      if (productId) {
+        await saveDocuments(productId);
+        
+        // Save variants if IT equipment
+        if (formData.product_type === 'it_equipment') {
+          await saveVariants(productId);
+        }
+      }
+
+      // Reset form for mass creation
+      if (!product) {
+        setSuccessMessage('Produit créé avec succès !');
+        setFormData({
+          name: '',
+          reference: '',
+          description: '',
+          technical_info: '',
+          product_type: '',
+          serial_number: '',
+          purchase_price_ht: '',
+          marlon_margin_percent: '',
+          supplier_id: '',
+          brand_id: '',
+          default_leaser_id: '',
+          category_ids: [],
+          specialty_ids: [],
+          images: [],
+        });
+        setDocuments([]);
+        setNewDocForm({ name: '', file_url: '', file_type: 'pdf', description: '' });
+        setError(null);
+        setLoading(false);
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+        // Keep modal open for mass creation
+        return;
+      }
+
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Une erreur est survenue');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {error && (
+        <div className="rounded-md bg-red-50 p-2.5">
+          <p className="text-xs text-red-800">{error}</p>
+        </div>
+      )}
+      {successMessage && (
+        <div className="rounded-md bg-green-50 p-2.5">
+          <p className="text-xs text-green-800">{successMessage}</p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {/* Section: Informations générales */}
+        <div className="border-b border-gray-200 pb-3">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Informations générales</h2>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="name" className="mb-1 block text-xs font-medium text-black">
+                Nom du produit <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="name"
+                type="text"
+                required
+                className="w-full rounded-md border border-[#525C6B] bg-white px-3 py-2 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="reference" className="mb-1 block text-xs font-medium text-black">
+              Référence
+            </label>
+            <input
+              id="reference"
+              type="text"
+              className="w-full rounded-md border border-[#525C6B] bg-white px-3 py-2 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              value={formData.reference}
+              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="serial_number" className="mb-1 block text-xs font-medium text-black">
+              Numéro de série
+            </label>
+            <input
+              id="serial_number"
+              type="text"
+              className="w-full rounded-md border border-[#525C6B] bg-white px-3 py-2 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              value={formData.serial_number}
+              onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
+            />
+            </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="product_type" className="mb-1 block text-xs font-medium text-black">
+                  Type de produit <span className="text-red-500">*</span>
+                </label>
+            <SearchableSelect
+              options={[
+                { value: 'medical_equipment', label: 'Matériel médical' },
+                { value: 'furniture', label: 'Mobilier' },
+                { value: 'it_equipment', label: 'Informatique' },
+              ]}
+              value={formData.product_type}
+              onChange={(value) => {
+                setFormData({ ...formData, product_type: value, specialty_ids: value !== 'medical_equipment' ? [] : formData.specialty_ids });
+                if (value !== 'it_equipment') {
+                  setProductVariants([]);
+                } else if (product && product.product_type === 'it_equipment') {
+                  loadProductVariants(product.id);
+                }
+              }}
+                placeholder="Sélectionner un type"
+                required
+              />
+              </div>
+
+              {formData.product_type === 'medical_equipment' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-black">
+                    Spécialités associées
+                  </label>
+                  <MultiSelect
+                    options={specialties.map((specialty) => ({
+                      value: specialty.id,
+                      label: specialty.name,
+                    }))}
+                    value={formData.specialty_ids}
+                    onChange={(values) => setFormData({ ...formData, specialty_ids: values })}
+                    placeholder="Sélectionner des spécialités"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-black">
+                  Catégories associées
+                </label>
+                <MultiSelect
+                  options={filteredCategories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  }))}
+                  value={formData.category_ids}
+                  onChange={(values) => setFormData({ ...formData, category_ids: values })}
+                  placeholder={formData.product_type ? "Sélectionner des catégories" : "Sélectionnez d&apos;abord un type de produit"}
+                  disabled={!formData.product_type}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Description et contenu */}
+        <div className="border-b border-gray-200 pb-3">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Description et contenu</h2>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="description" className="mb-1 block text-xs font-medium text-black">
+                  Description
+                </label>
+                <RichTextEditor
+                  value={formData.description}
+                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  placeholder="Description du produit..."
+                />
+              </div>
+
+              <div>
+                <label htmlFor="technical_info" className="mb-1 block text-xs font-medium text-black">
+                  Informations techniques
+                </label>
+                <RichTextEditor
+                  value={formData.technical_info}
+                  onChange={(value) => setFormData({ ...formData, technical_info: value })}
+                  placeholder="Infos techniques..."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Images */}
+        <div className="border-b border-gray-200 pb-3">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Images</h2>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-black">
+              Images du produit
+            </label>
+            <ImageUpload
+              images={formData.images}
+              onChange={(images) => setFormData({ ...formData, images })}
+              bucket="product-images"
+              maxImages={10}
+            />
+          </div>
+        </div>
+
+        {/* Section: Tarification et fournisseurs */}
+        <div className="border-b border-gray-200 pb-3">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Tarification et fournisseurs</h2>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="purchase_price_ht" className="mb-1 block text-xs font-medium text-black">
+                  Prix d&apos;achat HT (€) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="purchase_price_ht"
+                  type="number"
+                  step="0.01"
+                  required
+                  className="w-full rounded-md border border-[#525C6B] bg-white px-3 py-2 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+                  value={formData.purchase_price_ht}
+                  onChange={(e) => setFormData({ ...formData, purchase_price_ht: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="marlon_margin_percent" className="mb-1 block text-xs font-medium text-black">
+                  Marge MARLON (%) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="marlon_margin_percent"
+                  type="number"
+                  step="0.01"
+                  required
+                  className="w-full rounded-md border border-[#525C6B] bg-white px-3 py-2 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+                  value={formData.marlon_margin_percent}
+                  onChange={(e) => setFormData({ ...formData, marlon_margin_percent: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label htmlFor="brand_id" className="mb-1 block text-xs font-medium text-black">
+                  Marque
+                </label>
+                <SearchableSelect
+                  options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+                  value={formData.brand_id}
+                  onChange={(value) => setFormData({ ...formData, brand_id: value })}
+                  placeholder="Sélectionner une marque"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="supplier_id" className="mb-1 block text-xs font-medium text-black">
+                  Fournisseur
+                </label>
+                <SearchableSelect
+                  options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                  value={formData.supplier_id}
+                  onChange={(value) => setFormData({ ...formData, supplier_id: value })}
+                  placeholder="Sélectionner un fournisseur"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="default_leaser_id" className="mb-1 block text-xs font-medium text-black">
+                  Leaser par défaut
+                </label>
+                <SearchableSelect
+                  options={leasers.map((leaser) => ({ value: leaser.id, label: leaser.name }))}
+                  value={formData.default_leaser_id}
+                  onChange={(value) => {
+                    setFormData({ ...formData, default_leaser_id: value });
+                    // Recalculer les prix des variantes si le leaser change
+                    if (formData.product_type === 'it_equipment') {
+                      productVariants.forEach((variant, index) => {
+                        if (variant.purchase_price_ht && variant.marlon_margin_percent && value) {
+                          setTimeout(() => {
+                            calculateVariantPrice(index, variant.purchase_price_ht, variant.marlon_margin_percent);
+                          }, 500);
+                        }
+                      });
+                    }
+                  }}
+                  placeholder="Sélectionner un leaser"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Variantes - Only for IT Equipment */}
+        {formData.product_type === 'it_equipment' && (
+          <div className="border-b border-gray-200 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-900">Variantes ({productVariants.length})</h2>
+              <button
+                type="button"
+                onClick={handleAddVariant}
+                className="px-2 py-1 text-xs bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 flex items-center gap-1"
+              >
+                <Icon icon="mdi:plus" className="w-3 h-3" />
+                Ajouter une variante
+              </button>
+            </div>
+
+            {/* Sélection des filtres de variantes pour le produit principal */}
+            {variantFilters.length > 0 && (
+              <div className="mb-3">
+                <label className="mb-1 block text-xs font-medium text-black">
+                  Filtres de variantes disponibles
+                </label>
+                <MultiSelect
+                  options={variantFilters.map((filter) => ({
+                    value: filter.id,
+                    label: filter.display_name || filter.name,
+                  }))}
+                  value={formData.variant_filter_ids}
+                  onChange={(values) => setFormData({ ...formData, variant_filter_ids: values })}
+                  placeholder="Sélectionner les filtres à utiliser pour ce produit"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Sélectionnez les filtres qui seront disponibles pour créer des variantes de ce produit
+                </p>
+              </div>
+            )}
+
+            {variantFilters.length === 0 ? (
+              <p className="text-xs text-gray-500 py-2">
+                Aucun filtre défini. Configurez les filtres dans les Paramètres.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {productVariants.map((variant, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-700">Variante #{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVariant(index)}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                      >
+                        <Icon icon="mdi:close" className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Filtres - Seulement ceux sélectionnés pour le produit principal */}
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      {variantFilters
+                        .filter((filter) => formData.variant_filter_ids.includes(filter.id))
+                        .map((filter) => (
+                          <div key={filter.id}>
+                            <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                              {filter.display_name || filter.name}
+                            </label>
+                            <select
+                              value={variant.variant_data?.[filter.name] || ''}
+                              onChange={(e) => handleUpdateVariantFilter(index, filter.id, e.target.value)}
+                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                            >
+                              <option value="">Sélectionner...</option>
+                              {filter.product_variant_filter_options?.map((option: any) => (
+                                <option key={option.id} value={option.value}>
+                                  {option.display_value || option.value}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      {formData.variant_filter_ids.length === 0 && (
+                        <p className="text-[10px] text-gray-500 col-span-2">
+                          Sélectionnez d&apos;abord les filtres de variantes disponibles ci-dessus
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Prix et informations */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                          Prix HT fournisseur (€) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.purchase_price_ht || ''}
+                          onChange={(e) => handleUpdateVariant(index, 'purchase_price_ht', e.target.value)}
+                          required
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                          Marge MARLON (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.marlon_margin_percent || formData.marlon_margin_percent || ''}
+                          onChange={(e) => handleUpdateVariant(index, 'marlon_margin_percent', e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Prix calculés */}
+                    {variant.calculated_monthly_price && (
+                      <div className="p-2 bg-green-50 rounded-lg">
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Prix mensuel:</span>
+                            <span className="font-semibold text-green-700 ml-1">
+                              {variant.calculated_monthly_price.toFixed(2)} €
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Prix total:</span>
+                            <span className="font-semibold text-green-700 ml-1">
+                              {variant.calculated_total_price?.toFixed(2)} €
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Coefficient:</span>
+                            <span className="font-semibold text-green-700 ml-1">
+                              {variant.coefficient_used?.toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stock et disponibilité */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                          Stock
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={variant.stock_quantity !== undefined ? variant.stock_quantity : ''}
+                          onChange={(e) => handleUpdateVariant(index, 'stock_quantity', e.target.value ? parseInt(e.target.value) : 0)}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 pt-5">
+                        <input
+                          type="checkbox"
+                          id={`variant-active-${index}`}
+                          checked={variant.is_active !== false}
+                          onChange={(e) => handleUpdateVariant(index, 'is_active', e.target.checked)}
+                          className="w-4 h-4 text-marlon-green border-gray-300 rounded focus:ring-marlon-green"
+                        />
+                        <label htmlFor={`variant-active-${index}`} className="text-[10px] font-medium text-gray-700">
+                          Actif
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Images de la variante */}
+                    <div>
+                      <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                        Images de la variante
+                      </label>
+                      <ImageUpload
+                        images={Array.isArray(variant.images) ? variant.images : []}
+                        onChange={(images) => handleUpdateVariant(index, 'images', images)}
+                        bucket="product-images"
+                        maxImages={5}
+                        label=""
+                      />
+                    </div>
+
+                    {/* Numéro de série */}
+                    <div>
+                      <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Numéro de série</label>
+                      <input
+                        type="text"
+                        value={variant.sku || ''}
+                        onChange={(e) => handleUpdateVariant(index, 'sku', e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                      />
+                    </div>
+                  </div>
+                ))}
+                {productVariants.length === 0 && (
+                  <p className="text-xs text-gray-500 text-center py-4">
+                    Cliquez sur &quot;Ajouter une variante&quot; pour créer une nouvelle variante
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Section: Documents */}
+        <div className="border-b border-gray-200 pb-3">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Documents ({documents.length})</h2>
+          
+          {/* Existing Documents */}
+          {documents.length > 0 && (
+            <div className="space-y-1.5 mb-2 max-h-32 overflow-y-auto">
+              {documents.map((doc, index) => (
+                <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <Icon icon="mdi:file-pdf-box" className="w-4 h-4 text-marlon-green flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-900 truncate">{doc.name}</p>
+                    <p className="text-[10px] text-gray-500">{doc.file_type?.toUpperCase()}</p>
+                  </div>
+                  {doc.isNew && (
+                    <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded">Nouveau</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDocument(index)}
+                    className="p-0.5 text-gray-400 hover:text-red-600"
+                  >
+                    <Icon icon="mdi:close" className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add New Document */}
+          <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
+            <p className="text-xs font-medium text-gray-700">Ajouter un document</p>
+            
+            {/* File Upload */}
+            {newDocForm.file_url ? (
+              <div className="flex items-center gap-2 p-1.5 bg-green-50 rounded-lg">
+                <Icon icon="mdi:check-circle" className="w-3.5 h-3.5 text-green-600" />
+                <span className="text-[10px] text-green-700 truncate flex-1">Fichier uploadé</span>
+                <button
+                  type="button"
+                  onClick={() => setNewDocForm(prev => ({ ...prev, file_url: '' }))}
+                  className="text-gray-500 hover:text-red-600"
+                >
+                  <Icon icon="mdi:close" className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-1.5 p-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-marlon-green hover:bg-white transition-colors">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={handleDocumentUpload}
+                  className="hidden"
+                  disabled={uploadingDoc}
+                />
+                {uploadingDoc ? (
+                  <Icon icon="mdi:loading" className="w-3.5 h-3.5 animate-spin text-marlon-green" />
+                ) : (
+                  <>
+                    <Icon icon="mdi:upload" className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-[10px] text-gray-500">Cliquez pour uploader</span>
+                  </>
+                )}
+              </label>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                placeholder="Nom du document"
+                value={newDocForm.name}
+                onChange={(e) => setNewDocForm(prev => ({ ...prev, name: e.target.value }))}
+                className="px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+              />
+              <select
+                value={newDocForm.file_type}
+                onChange={(e) => setNewDocForm(prev => ({ ...prev, file_type: e.target.value }))}
+                className="px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+              >
+                {FILE_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddDocument}
+              disabled={!newDocForm.name || !newDocForm.file_url}
+              className="w-full px-2 py-1.5 text-xs bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+            >
+              <Icon icon="mdi:plus" className="w-3.5 h-3.5" />
+              Ajouter ce document
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 mt-4 flex flex-col sm:flex-row gap-3 border-t border-gray-200 bg-white pt-4 -mx-6 px-6">
+        <Button
+          type="submit"
+          disabled={loading}
+          icon="mdi:check"
+          variant="primary"
+          className="w-full sm:w-auto"
+        >
+          {loading ? 'Sauvegarde...' : product ? 'Modifier' : 'Créer'}
+        </Button>
+        <Button
+          type="button"
+          onClick={onCancel}
+          variant="outline"
+          className="w-full sm:w-auto"
+        >
+          Annuler
+        </Button>
+      </div>
+    </form>
+  );
+}

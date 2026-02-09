@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+  --input-border: #525C6B;
+  --input-placeholder: #525C6B;
+  --modal-bg: #F3F4F6;
+  --marlon-green: #00BD82;
+  --marlon-green-light: #E8F5E9;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Input styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  background-color: #ffffff;
+  border-color: #525C6B;
+  color: #000000;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #525C6B;
+}
+
+/* Modal and group styles */
+.modal,
+.group {
+  background-color: #F3F4F6;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
