@@ -100,7 +100,7 @@ export default function CategoryProductsClient({
   });
 
   // Get unique brands from products
-  const productBrandIds = [...new Set(products.map(p => p.brand_id).filter(Boolean))];
+  const productBrandIds = Array.from(new Set(products.map(p => p.brand_id).filter(Boolean)));
   const availableBrands = brands.filter(b => productBrandIds.includes(b.id));
 
   const toggleBrand = (brandId: string) => {

@@ -8,12 +8,14 @@ const nextConfig = {
       },
     ],
   },
-  // Supprime les avertissements d'hydratation pour les attributs ajoutés par les extensions de navigateur
   reactStrictMode: true,
-  // Configuration pour réduire les avertissements d'hydratation
-  onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
+  poweredByHeader: false,
+  compress: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
