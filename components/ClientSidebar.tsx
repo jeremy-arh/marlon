@@ -10,25 +10,104 @@ import { LOGO_URL } from '@/lib/constants';
 export default function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  
+  // Cache the role in sessionStorage to avoid reloading on navigation
+  const ROLE_CACHE_KEY = 'marlon_user_role';
+  const ROLE_CACHE_USER_KEY = 'marlon_user_id';
+  
+  // Initialize role from cache if available
+  const getCachedRole = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const cachedRole = sessionStorage.getItem(ROLE_CACHE_KEY);
+    return cachedRole || null;
+  };
+  
   const [user, setUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(getCachedRole());
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [loadingRole, setLoadingRole] = useState(false);
 
   useEffect(() => {
     const loadUserAndRole = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      setUser(currentUser);
+      try {
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !currentUser) {
+          setUser(null);
+          setUserRole(null);
+          setLoadingRole(false);
+          // Clear cache
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(ROLE_CACHE_KEY);
+            sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
+          }
+          return;
+        }
 
-      if (currentUser) {
-        // Get user role
-        const { data: roleData } = await supabase
+        setUser(currentUser);
+
+        // Check cache first
+        if (typeof window !== 'undefined') {
+          const cachedUserId = sessionStorage.getItem(ROLE_CACHE_USER_KEY);
+          const cachedRole = sessionStorage.getItem(ROLE_CACHE_KEY);
+          
+          // If cache exists and user ID matches, use cached role immediately
+          if (cachedUserId === currentUser.id && cachedRole !== null) {
+            setUserRole(cachedRole);
+            setLoadingRole(false);
+            // Still verify in background (but don't block UI)
+            supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', currentUser.id)
+              .eq('status', 'active')
+              .maybeSingle()
+              .then(({ data: roleData }) => {
+                const role = roleData?.role || null;
+                if (role !== cachedRole) {
+                  setUserRole(role);
+                  sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
+                }
+              })
+              .catch(() => {
+                // Silently fail - keep cached value
+              });
+            return;
+          }
+        }
+
+        // Load role from database
+        setLoadingRole(true);
+        const { data: roleData, error: roleError } = await supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', currentUser.id)
           .eq('status', 'active')
-          .single();
+          .maybeSingle();
 
-        setUserRole(roleData?.role || null);
+        if (roleError) {
+          console.error('Error loading user role:', roleError);
+          setUserRole(null);
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(ROLE_CACHE_KEY);
+            sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
+          }
+        } else {
+          const role = roleData?.role || null;
+          setUserRole(role);
+          // Cache the role
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
+            sessionStorage.setItem(ROLE_CACHE_USER_KEY, currentUser.id);
+          }
+        }
+      } catch (error) {
+        console.error('Error in loadUserAndRole:', error);
+        setUser(null);
+        setUserRole(null);
+      } finally {
+        setLoadingRole(false);
       }
     };
 
@@ -37,28 +116,85 @@ export default function ClientSidebar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .eq('status', 'active')
-          .single();
+        // Only reload role if user changed (different user ID)
+        const currentUserId = user?.id;
+        if (session.user.id !== currentUserId) {
+          // Clear old cache
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(ROLE_CACHE_KEY);
+            sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
+          }
+          
+          setLoadingRole(true);
+          try {
+            const { data: roleData, error: roleError } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', session.user.id)
+              .eq('status', 'active')
+              .maybeSingle();
 
-        setUserRole(roleData?.role || null);
+            if (roleError) {
+              console.error('Error loading user role on auth change:', roleError);
+              setUserRole(null);
+            } else {
+              const role = roleData?.role || null;
+              setUserRole(role);
+              // Cache the role
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
+                sessionStorage.setItem(ROLE_CACHE_USER_KEY, session.user.id);
+              }
+            }
+          } catch (error) {
+            console.error('Error in auth state change handler:', error);
+            setUserRole(null);
+          } finally {
+            setLoadingRole(false);
+          }
+        }
+        // If same user, keep the existing role from cache or state
       } else {
         setUserRole(null);
+        setLoadingRole(false);
+        // Clear cache on logout
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(ROLE_CACHE_KEY);
+          sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
+        }
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [user?.id]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+  const handleSignOut = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    
+    if (signingOut) return; // Prevent multiple clicks
+    
+    setSigningOut(true);
+    setShowProfileMenu(false); // Close menu immediately
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        // Even if there's an error, try to redirect
+      }
+      
+      // Force a full page reload to clear all state
+      window.location.href = '/catalog';
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      // Force redirect even on error
+      window.location.href = '/catalog';
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   // Items de navigation selon l'état de connexion et le rôle
@@ -82,15 +218,19 @@ export default function ClientSidebar() {
   ];
 
   // Déterminer les items de navigation à afficher
+  // Use userRole if available, otherwise wait for it to load
   let navItems = publicNavItems;
   if (user) {
+    // If we have a role (from initialUserRole or loaded), use it
     if (userRole === 'admin') {
       navItems = adminNavItems;
     } else if (userRole === 'employee') {
       navItems = employeeNavItems;
-    } else {
+    } else if (!loadingRole) {
+      // If role is loaded but null/undefined, show public items
       navItems = publicNavItems;
     }
+    // If loadingRole is true, keep showing publicNavItems until role is loaded
   }
 
   return (
@@ -137,14 +277,28 @@ export default function ClientSidebar() {
           >
             {/* Menu flottant */}
             {showProfileMenu && (
-              <div className="absolute bottom-full left-0 right-0 pb-2 z-50">
+              <div 
+                className="absolute bottom-full left-0 right-0 pb-2 z-50"
+                onMouseEnter={() => setShowProfileMenu(true)}
+                onMouseLeave={() => !signingOut && setShowProfileMenu(false)}
+              >
                 <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1">
                   <button
                     onClick={handleSignOut}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    disabled={signingOut}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Icon icon="mdi:logout" className="h-5 w-5" />
-                    Déconnexion
+                    {signingOut ? (
+                      <>
+                        <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                        Déconnexion...
+                      </>
+                    ) : (
+                      <>
+                        <Icon icon="mdi:logout" className="h-5 w-5" />
+                        Déconnexion
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

@@ -3,12 +3,39 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 import { Icon } from '@iconify/react';
 import { LOGO_URL } from '@/lib/constants';
 
 export default function MobileSidebar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
+
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    if (signingOut) return; // Prevent multiple clicks
+    
+    setSigningOut(true);
+    setIsOpen(false); // Close sidebar
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+      }
+      
+      // Force a full page reload to clear all state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      // Force redirect even on error
+      window.location.href = '/login';
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   const navItems = [
     { href: '/admin/dashboard', icon: 'mdi:view-dashboard', label: 'Dashboard' },
@@ -81,14 +108,23 @@ export default function MobileSidebar() {
           })}
         </nav>
         <div className="mt-auto border-t border-gray-200 p-4">
-          <Link
-            href="/api/auth/signout"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Icon icon="mdi:logout" className="h-5 w-5 text-gray-400" />
-            Déconnexion
-          </Link>
+            {signingOut ? (
+              <>
+                <Icon icon="mdi:loading" className="h-5 w-5 text-gray-400 animate-spin" />
+                Déconnexion...
+              </>
+            ) : (
+              <>
+                <Icon icon="mdi:logout" className="h-5 w-5 text-gray-400" />
+                Déconnexion
+              </>
+            )}
+          </button>
         </div>
       </aside>
     </>
