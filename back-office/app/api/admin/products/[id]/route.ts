@@ -65,11 +65,22 @@ export async function GET(
       // Table might not exist yet, ignore
     }
 
+    // Fetch child products (variants) if this is a parent product
+    const { data: childProducts } = await serviceClient
+      .from('products')
+      .select(`
+        id, name, reference, purchase_price_ht, marlon_margin_percent, variant_data,
+        product_images(image_url, order_index)
+      `)
+      .eq('parent_product_id', params.id)
+      .order('created_at', { ascending: true });
+
     const enrichedData = {
       ...data,
       product_categories: categoriesData || [],
       product_specialties: specialtiesData || [],
       variant_filter_ids: variantFiltersData.map((vf: any) => vf.filter_id),
+      child_products: childProducts || [],
     };
 
     return NextResponse.json({ success: true, data: enrichedData });
@@ -107,7 +118,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, reference, description, technical_info, product_type, serial_number, purchase_price_ht, marlon_margin_percent, supplier_id, brand_id, default_leaser_id, category_ids, specialty_ids, images, variant_filter_ids } = body;
+    const { name, reference, description, technical_info, product_type, serial_number, purchase_price_ht, marlon_margin_percent, supplier_id, brand_id, default_leaser_id, category_ids, specialty_ids, images, variant_filter_ids, variant_data, parent_product_id } = body;
 
     if (!name || !purchase_price_ht || !marlon_margin_percent || !product_type) {
       return NextResponse.json({ error: 'Les champs nom, type, prix d\'achat et marge sont requis' }, { status: 400 });
@@ -124,9 +135,11 @@ export async function PUT(
         serial_number: serial_number || null,
         purchase_price_ht,
         marlon_margin_percent,
+        parent_product_id: parent_product_id || null,
         supplier_id: supplier_id || null,
         brand_id: brand_id || null,
         default_leaser_id: default_leaser_id || null,
+        variant_data: product_type === 'it_equipment' ? (variant_data || {}) : {},
       })
       .eq('id', params.id)
       .select()

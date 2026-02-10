@@ -29,8 +29,15 @@ export default function ClientHeader() {
       }
     });
 
+    // Listen for cart-updated events (dispatched after adding to cart)
+    const handleCartUpdate = () => {
+      loadCartCount();
+    };
+    window.addEventListener('cart-updated', handleCartUpdate);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('cart-updated', handleCartUpdate);
     };
   }, []);
 
@@ -102,62 +109,67 @@ export default function ClientHeader() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-4 ml-auto">
-            {/* Settings */}
-            <Link
-              href="/settings"
-              className="p-2 text-marlon-text hover:text-marlon-green transition-colors"
-              aria-label="Paramètres"
-            >
-              <Icon icon="mdi:cog-outline" className="h-6 w-6" />
-            </Link>
-
-            {/* Quick Actions button */}
-            <div className="relative" ref={quickActionsRef}>
-              <button
-                onClick={() => setShowQuickActions(!showQuickActions)}
-                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${
-                  showQuickActions 
-                    ? 'bg-marlon-green text-white rotate-45' 
-                    : 'bg-marlon-green text-white hover:bg-marlon-green/90'
-                }`}
-                aria-label="Actions rapides"
-              >
-                <Icon icon="mdi:plus" className="h-5 w-5" />
-              </button>
-
-              {/* Floating menu */}
-              {showQuickActions && (
-                <div 
-                  className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[100]"
-                  style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}
+            {/* Only show icons if user is authenticated */}
+            {user && (
+              <>
+                {/* Settings */}
+                <Link
+                  href="/settings"
+                  className="p-2 text-marlon-text hover:text-marlon-green transition-colors"
+                  aria-label="Paramètres"
                 >
-                  {quickActions.map((action, index) => (
-                    <Link
-                      key={index}
-                      href={action.href}
-                      onClick={() => setShowQuickActions(false)}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
-                    >
-                      <Icon icon={action.icon} className={`h-5 w-5 ${action.color}`} />
-                      <span className="text-sm text-gray-700">{action.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+                  <Icon icon="mdi:cog-outline" className="h-6 w-6" />
+                </Link>
 
-            {/* Cart */}
-            <Link
-              href="/cart"
-              className="relative p-2 text-marlon-text hover:text-marlon-green transition-colors"
-            >
-              <Icon icon="mdi:cart-outline" className="h-6 w-6" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-marlon-green text-xs font-semibold text-white">
-                  {cartCount > 9 ? '9+' : cartCount}
-                </span>
-              )}
-            </Link>
+                {/* Quick Actions button */}
+                <div className="relative" ref={quickActionsRef}>
+                  <button
+                    onClick={() => setShowQuickActions(!showQuickActions)}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${
+                      showQuickActions 
+                        ? 'bg-marlon-green text-white rotate-45' 
+                        : 'bg-marlon-green text-white hover:bg-marlon-green/90'
+                    }`}
+                    aria-label="Actions rapides"
+                  >
+                    <Icon icon="mdi:plus" className="h-5 w-5" />
+                  </button>
+
+                  {/* Floating menu */}
+                  {showQuickActions && (
+                    <div 
+                      className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[100]"
+                      style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}
+                    >
+                      {quickActions.map((action, index) => (
+                        <Link
+                          key={index}
+                          href={action.href}
+                          onClick={() => setShowQuickActions(false)}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <Icon icon={action.icon} className={`h-5 w-5 ${action.color}`} />
+                          <span className="text-sm text-gray-700">{action.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cart */}
+                <Link
+                  href="/cart"
+                  className="relative p-2 text-marlon-text hover:text-marlon-green transition-colors"
+                >
+                  <Icon icon="mdi:cart-outline" className="h-6 w-6" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-marlon-green text-xs font-semibold text-white">
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </span>
+                  )}
+                </Link>
+              </>
+            )}
 
             {/* User menu */}
             {!user && (

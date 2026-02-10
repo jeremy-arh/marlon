@@ -70,12 +70,11 @@ export default function CategoryProductsClient({
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
 
-  // Calculate monthly price TTC
+  // Calculate monthly price (same formula as back-office: priceHT * coefficient)
   const calculateMonthlyPrice = (product: Product) => {
     const priceHT = product.purchase_price_ht * (1 + product.marlon_margin_percent / 100);
-    const monthlyHT = priceHT * coefficient;
-    const monthlyTTC = monthlyHT * 1.2; // 20% TVA
-    return monthlyTTC;
+    const monthly = priceHT * coefficient;
+    return monthly;
   };
 
   // Filter products
@@ -170,7 +169,7 @@ export default function CategoryProductsClient({
                     type="checkbox"
                     checked={selectedBrands.includes(brand.id)}
                     onChange={() => toggleBrand(brand.id)}
-                    className="rounded border-gray-300 text-marlon-green focus:ring-marlon-green"
+                    className="rounded border-gray-300 accent-marlon-green text-marlon-green focus:ring-marlon-green"
                   />
                   <span className="text-sm text-gray-700">{brand.name}</span>
                 </label>
@@ -233,7 +232,7 @@ export default function CategoryProductsClient({
                     <div className="mt-auto text-center">
                       <p className="text-[10px] text-gray-500">à partir de</p>
                       <p className="text-xs font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € TTC <span className="font-normal text-gray-500">/mois</span>
+                        {monthlyPrice.toFixed(2)} € HT <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>
                   </div>

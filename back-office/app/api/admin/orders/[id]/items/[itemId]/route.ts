@@ -52,7 +52,7 @@ export async function PUT(
       .select('*')
       .eq('order_id', params.id);
 
-    // Update the item
+    // Find the item to update
     const itemToUpdate = allItems?.find((item: any) => item.id === params.itemId);
     if (!itemToUpdate) {
       return NextResponse.json(
@@ -60,16 +60,6 @@ export async function PUT(
         { status: 404 }
       );
     }
-
-    // Prepare items for recalculation
-    const itemsForRecalc = (allItems || [])
-      .filter((item: any) => item.id !== params.itemId)
-      .map((item: any) => ({
-        productId: item.product_id,
-        purchasePrice: parseFloat(item.purchase_price_ht.toString()),
-        marginPercent: parseFloat(item.margin_percent.toString()),
-        quantity: item.quantity,
-      }));
 
     // Get product info
     const productId = product_id || itemToUpdate.product_id;
@@ -86,11 +76,30 @@ export async function PUT(
       );
     }
 
+    // Get the new quantity
+    const newQuantity = quantity || itemToUpdate.quantity;
+
+    // Find all order_items for this product in this order (to replace them all)
+    const itemsForThisProduct = (allItems || []).filter(
+      (item: any) => item.product_id === productId
+    );
+
+    // Prepare items for recalculation (excluding all items for this product)
+    const itemsForRecalc = (allItems || [])
+      .filter((item: any) => item.product_id !== productId)
+      .map((item: any) => ({
+        productId: item.product_id,
+        purchasePrice: parseFloat(item.purchase_price_ht.toString()),
+        marginPercent: parseFloat(item.margin_percent.toString()),
+        quantity: item.quantity,
+      }));
+
+    // Add the updated product with new quantity
     itemsForRecalc.push({
       productId,
       purchasePrice: parseFloat(product.purchase_price_ht.toString()),
       marginPercent: parseFloat(product.marlon_margin_percent.toString()),
-      quantity: quantity || itemToUpdate.quantity,
+      quantity: newQuantity,
     });
 
     // Check if leaser is set
@@ -135,8 +144,8 @@ export async function PUT(
     // recalculatedItems has the same order
     // We need to map each recalculatedItem back to its order_item
     
-    // Create mapping: itemsForRecalc index -> order_item
-    const otherItems = (allItems || []).filter((item: any) => item.id !== params.itemId);
+    // Get other items (not for this product)
+    const otherItems = (allItems || []).filter((item: any) => item.product_id !== productId);
     const itemMapping: Map<number, any> = new Map();
     
     // Map other items (first itemsForRecalc.length - 1 items)
@@ -147,11 +156,11 @@ export async function PUT(
     // The last item in recalculatedItems is the updated one
     const updatedRecalculatedItem = recalculatedItems[recalculatedItems.length - 1];
 
-    // Update ALL order items with the new coefficient and recalculated prices
+    // Update ALL other order items with the new coefficient and recalculated prices
     // This ensures all items have the same coefficient based on the total order amount
     const updatePromises: PromiseLike<any>[] = [];
 
-    // Update other items
+    // Update other items (not for this product)
     for (let i = 0; i < otherItems.length; i++) {
       const orderItem = itemMapping.get(i);
       const recalculatedItem = recalculatedItems[i];
@@ -171,38 +180,71 @@ export async function PUT(
       }
     }
 
-    // Update the modified item (last in recalculatedItems)
-    if (updatedRecalculatedItem) {
-      updatePromises.push(
-        serviceClient
-          .from('order_items')
-          .update({
-            product_id: productId,
-            quantity: quantity || itemToUpdate.quantity,
-            purchase_price_ht: updatedRecalculatedItem.purchasePrice,
-            margin_percent: updatedRecalculatedItem.marginPercent,
-            calculated_price_ht: updatedRecalculatedItem.calculatedPrice,
-            coefficient_used: coefficient, // Same coefficient for all
-          })
-          .eq('id', params.itemId)
-      );
-    }
-
     await Promise.all(updatePromises);
 
-    // Get the updated item to return
-    const { data: orderItem, error: fetchError } = await serviceClient
+    // Delete all order_items for this product
+    const { error: deleteError } = await serviceClient
       .from('order_items')
-      .select('*')
-      .eq('id', params.itemId)
-      .single();
+      .delete()
+      .eq('order_id', params.id)
+      .eq('product_id', productId);
 
-    if (fetchError) {
+    if (deleteError) {
       return NextResponse.json(
-        { error: fetchError.message },
+        { error: deleteError.message },
         { status: 500 }
       );
     }
+
+    // Create new order_items - one per unit
+    if (updatedRecalculatedItem) {
+      const orderItemsToInsert: any[] = [];
+      const quantityNum = parseInt(newQuantity.toString());
+      
+      // Calculate price per unit (calculatedPrice includes quantity)
+      const pricePerUnit = updatedRecalculatedItem.calculatedPrice / quantityNum;
+      
+      // Create one order_item per unit
+      for (let i = 0; i < quantityNum; i++) {
+        orderItemsToInsert.push({
+          order_id: params.id,
+          product_id: productId,
+          quantity: 1, // Each order_item represents a single unit
+          purchase_price_ht: updatedRecalculatedItem.purchasePrice,
+          margin_percent: updatedRecalculatedItem.marginPercent,
+          calculated_price_ht: pricePerUnit, // Price per unit
+          coefficient_used: coefficient, // Same coefficient for all
+        });
+      }
+
+      const { error: insertError } = await serviceClient
+        .from('order_items')
+        .insert(orderItemsToInsert);
+
+      if (insertError) {
+        return NextResponse.json(
+          { error: insertError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Get one of the newly created items to return (for compatibility)
+    const { data: newOrderItems, error: fetchError } = await serviceClient
+      .from('order_items')
+      .select('*')
+      .eq('order_id', params.id)
+      .eq('product_id', productId)
+      .limit(1);
+
+    if (fetchError || !newOrderItems || newOrderItems.length === 0) {
+      return NextResponse.json(
+        { error: fetchError?.message || 'Erreur lors de la récupération des articles' },
+        { status: 500 }
+      );
+    }
+
+    const orderItem = newOrderItems[0]; // Return first item for compatibility
 
     // Update order total
     const finalTotal = recalculatedItems.reduce((sum, item) => sum + item.calculatedPrice, 0);
@@ -218,21 +260,26 @@ export async function PUT(
       .eq('id', productId)
       .single();
 
+    // Calculate old quantity (sum of all order_items for this product)
+    const oldQuantity = itemsForThisProduct.reduce((sum: number, item: any) => sum + item.quantity, 0);
+
     // Create log
     const changes: string[] = [];
     const metadata: any = {
-      item_id: params.itemId,
       product_id: productId,
       product_name: productData?.name,
+      old_quantity: oldQuantity,
+      new_quantity: newQuantity,
+      items_created: newQuantity, // Number of order_items created
     };
 
     if (product_id && product_id !== itemToUpdate.product_id) {
       changes.push(`Produit modifié`);
       metadata.product_change = { from: itemToUpdate.product_id, to: product_id };
     }
-    if (quantity && quantity !== itemToUpdate.quantity) {
-      changes.push(`Quantité modifiée: ${itemToUpdate.quantity} → ${quantity}`);
-      metadata.quantity_change = { from: itemToUpdate.quantity, to: quantity };
+    if (newQuantity !== oldQuantity) {
+      changes.push(`Quantité modifiée: ${oldQuantity} → ${newQuantity} (${newQuantity} équipements créés)`);
+      metadata.quantity_change = { from: oldQuantity, to: newQuantity };
     }
 
     await createOrderLog({
@@ -315,7 +362,7 @@ export async function DELETE(
       .eq('id', itemToDelete.product_id)
       .single();
 
-    // Delete item
+    // Delete only the specific order_item
     const { error: deleteError } = await serviceClient
       .from('order_items')
       .delete()

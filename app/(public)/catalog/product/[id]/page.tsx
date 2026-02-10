@@ -34,15 +34,17 @@ async function getProductCategory(productId: string) {
   return productCategory;
 }
 
-async function getRelatedProducts(categoryId: string, currentProductId: string) {
+async function getRelatedProducts(categoryId: string, currentProductId: string, groupProductIds: string[]) {
   const supabase = await createClient();
 
-  // Get product IDs in the same category
+  // Get product IDs in the same category, excluding current product and all its group members
+  const excludeIds = [currentProductId, ...groupProductIds];
+  
   const { data: productCategories } = await supabase
     .from('product_categories')
     .select('product_id')
     .eq('category_id', categoryId)
-    .neq('product_id', currentProductId)
+    .not('product_id', 'in', `(${excludeIds.join(',')})`)
     .limit(10);
 
   if (!productCategories || productCategories.length === 0) {
@@ -51,6 +53,7 @@ async function getRelatedProducts(categoryId: string, currentProductId: string) 
 
   const productIds = productCategories.map((pc) => pc.product_id);
 
+  // Only show parent products (not variants) in related products
   const { data: products } = await supabase
     .from('products')
     .select(`
@@ -61,6 +64,7 @@ async function getRelatedProducts(categoryId: string, currentProductId: string) 
       product_images(image_url, order_index)
     `)
     .in('id', productIds)
+    .is('parent_product_id', null)
     .limit(5);
 
   return products || [];
@@ -97,12 +101,35 @@ export default async function ProductPage({
     notFound();
   }
 
+  // Determine the parent product ID and fetch all group members (siblings)
+  const parentId = product.parent_product_id || product.id;
+  
+  // Fetch all products in the group: parent + all children
+  const { data: groupProducts } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      purchase_price_ht,
+      marlon_margin_percent,
+      variant_data,
+      parent_product_id,
+      product_images(image_url, order_index)
+    `)
+    .or(`id.eq.${parentId},parent_product_id.eq.${parentId}`)
+    .order('created_at', { ascending: true });
+
+  const siblings = groupProducts || [];
+  const groupProductIds = siblings.map(p => p.id);
+
   // Get category for breadcrumb and related products
-  const productCategory = await getProductCategory(params.id);
+  // If current product is a variant, use parent's category
+  const categoryProductId = product.parent_product_id || params.id;
+  const productCategory = await getProductCategory(categoryProductId);
   const category = productCategory?.categories as { id: string; name: string } | null;
 
-  // Get related products
-  const relatedProducts = category ? await getRelatedProducts(category.id, params.id) : [];
+  // Get related products (excluding all group members)
+  const relatedProducts = category ? await getRelatedProducts(category.id, params.id, groupProductIds) : [];
 
   // Get product type and specialty for breadcrumb
   let productType = product.product_type || null;
@@ -144,44 +171,73 @@ export default async function ProductPage({
     }
   }
 
-  // Get all leasing durations
-  const { data: durations } = await supabase
-    .from('leasing_durations')
-    .select('id, months')
-    .order('months', { ascending: true });
-
-  // Calculate the product price with margin
-  const productPriceHT = product.purchase_price_ht * (1 + product.marlon_margin_percent / 100);
-
-  // Get the coefficient for the longest duration that gives the lowest monthly price
-  // First, find the longest duration that has coefficients
-  const { data: coefficientsWithDurations } = await supabase
+  // Load ALL leaser coefficients once for price calculations
+  const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
     .select('coefficient, min_amount, max_amount, duration_id, leasing_durations(months)')
-    .gte('max_amount', productPriceHT)
-    .lte('min_amount', productPriceHT)
-    .order('coefficient', { ascending: true }) // Lower coefficient = lower monthly payment
-    .limit(1);
+    .order('coefficient', { ascending: true });
 
-  // Fallback: get any coefficient that matches the price range
-  let coefficient = 0.035;
+  // Helper: find the best coefficient for a given price HT
+  const findCoefficient = (priceHT: number): number => {
+    if (allCoefficients && allCoefficients.length > 0) {
+      const matching = allCoefficients.find(
+        (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
+      );
+      if (matching) return Number(matching.coefficient) / 100;
+      return Number(allCoefficients[0].coefficient) / 100;
+    }
+    return 0.05;
+  };
+
+  // Calculate the current product's price
+  const productPriceHT = product.purchase_price_ht * (1 + product.marlon_margin_percent / 100);
+  const coefficient = findCoefficient(Number(productPriceHT));
+  const currentMonthlyPrice = Number(productPriceHT) * coefficient;
+
+  // Get the best duration
   let bestDurationMonths = 60;
-  
-  if (coefficientsWithDurations && coefficientsWithDurations.length > 0) {
-    coefficient = Number(coefficientsWithDurations[0].coefficient) / 100; // Convert percentage to decimal
-    bestDurationMonths = (coefficientsWithDurations[0].leasing_durations as any)?.months || 60;
-  } else {
-    // Fallback: get the lowest coefficient available
-    const { data: fallbackCoef } = await supabase
-      .from('leaser_coefficients')
-      .select('coefficient, leasing_durations(months)')
-      .order('coefficient', { ascending: true })
-      .limit(1)
-      .single();
-    
-    if (fallbackCoef) {
-      coefficient = Number(fallbackCoef.coefficient) / 100;
-      bestDurationMonths = (fallbackCoef.leasing_durations as any)?.months || 60;
+  if (allCoefficients && allCoefficients.length > 0) {
+    const matching = allCoefficients.find(
+      (c: any) => Number(c.min_amount) <= Number(productPriceHT) && Number(c.max_amount) >= Number(productPriceHT)
+    );
+    if (matching) {
+      bestDurationMonths = (matching.leasing_durations as any)?.months || 60;
+    } else {
+      bestDurationMonths = (allCoefficients[0].leasing_durations as any)?.months || 60;
+    }
+  }
+
+  // Calculate cheapest price across all group members (for "à partir de")
+  let cheapestMonthlyPrice: number | null = null;
+  if (productType === 'it_equipment' && siblings.length > 1) {
+    const allPrices: number[] = [];
+    for (const s of siblings) {
+      if (s.purchase_price_ht && s.marlon_margin_percent) {
+        const sHT = Number(s.purchase_price_ht) * (1 + Number(s.marlon_margin_percent) / 100);
+        allPrices.push(sHT * findCoefficient(sHT));
+      }
+    }
+    if (allPrices.length > 0) {
+      cheapestMonthlyPrice = Math.min(...allPrices);
+    }
+  }
+
+  // Fetch variant filter definitions (for building filter dropdowns)
+  let variantFilterDefs: any[] = [];
+  if (productType === 'it_equipment' && siblings.length > 1) {
+    // Get variant filter IDs from the parent product
+    const { data: filterJunctions } = await supabase
+      .from('product_variant_filters_junction')
+      .select('filter_id')
+      .eq('product_id', parentId);
+
+    if (filterJunctions && filterJunctions.length > 0) {
+      const filterIds = filterJunctions.map(fj => fj.filter_id);
+      const { data: filters } = await supabase
+        .from('product_variant_filters')
+        .select('id, name, label, product_variant_filter_options(id, value, label, order_index)')
+        .in('id', filterIds);
+      variantFilterDefs = filters || [];
     }
   }
 
@@ -195,8 +251,12 @@ export default async function ProductPage({
       itTypeId={itTypeId}
       itTypeName={itTypeName}
       coefficient={Number(coefficient)}
+      currentMonthlyPrice={currentMonthlyPrice}
+      cheapestMonthlyPrice={cheapestMonthlyPrice}
       bestDurationMonths={bestDurationMonths}
       relatedProducts={relatedProducts}
+      siblings={siblings}
+      variantFilterDefs={variantFilterDefs}
     />
   );
 }

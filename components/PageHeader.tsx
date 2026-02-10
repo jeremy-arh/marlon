@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase/client';
 import Icon from './Icon';
 import CartModal from './CartModal';
 
@@ -14,11 +15,27 @@ export default function PageHeader({ title }: PageHeaderProps) {
   const [cartCount, setCartCount] = useState(0);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const quickActionsRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   // Determine if we're in admin context
   const isAdmin = pathname?.startsWith('/admin') || false;
+
+  // Check user authentication
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const loadCartCount = async () => {
     try {
@@ -32,10 +49,21 @@ export default function PageHeader({ title }: PageHeaderProps) {
   };
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isAdmin && user) {
       loadCartCount();
     }
-  }, [isAdmin]);
+
+    // Listen for cart-updated events (dispatched after adding to cart)
+    const handleCartUpdate = () => {
+      if (user) {
+        loadCartCount();
+      }
+    };
+    window.addEventListener('cart-updated', handleCartUpdate);
+    return () => {
+      window.removeEventListener('cart-updated', handleCartUpdate);
+    };
+  }, [isAdmin, user]);
 
   // Handle click outside to close quick actions menu
   useEffect(() => {
@@ -127,67 +155,72 @@ export default function PageHeader({ title }: PageHeaderProps) {
 
             {/* Right side actions */}
             <div className="flex items-center gap-4">
-              {/* Settings */}
-              <Link
-                href={settingsHref}
-                className={`p-2 transition-colors ${
-                  pathname === settingsHref
-                    ? 'text-marlon-green'
-                    : 'text-gray-500 hover:text-marlon-green'
-                }`}
-                aria-label="Paramètres"
-              >
-                <Icon icon="mdi:cog-outline" className="h-5 w-5" />
-              </Link>
-
-              {/* Quick Actions button */}
-              <div className="relative" ref={quickActionsRef}>
-                <button
-                  onClick={() => setShowQuickActions(!showQuickActions)}
-                  className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${
-                    showQuickActions 
-                      ? 'bg-marlon-green text-white rotate-45' 
-                      : 'bg-marlon-green text-white hover:bg-marlon-green/90'
-                  }`}
-                  aria-label="Actions rapides"
-                >
-                  <Icon icon="mdi:plus" className="h-5 w-5" />
-                </button>
-
-                {/* Floating menu */}
-                {showQuickActions && (
-                  <div 
-                    className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[100]"
-                    style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}
+              {/* Only show icons if user is authenticated (or if admin) */}
+              {(user || isAdmin) && (
+                <>
+                  {/* Settings */}
+                  <Link
+                    href={settingsHref}
+                    className={`p-2 transition-colors ${
+                      pathname === settingsHref
+                        ? 'text-marlon-green'
+                        : 'text-gray-500 hover:text-marlon-green'
+                    }`}
+                    aria-label="Paramètres"
                   >
-                    {quickActions.map((action, index) => (
-                      <Link
-                        key={index}
-                        href={action.href}
-                        onClick={() => setShowQuickActions(false)}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
-                      >
-                        <Icon icon={action.icon} className={`h-5 w-5 ${action.color}`} />
-                        <span className="text-sm font-medium text-gray-700">{action.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    <Icon icon="mdi:cog-outline" className="h-5 w-5" />
+                  </Link>
 
-              {/* Cart - only show in public context */}
-              {!isAdmin && (
-                <button
-                  onClick={() => setIsCartOpen(true)}
-                  className="relative p-2 text-marlon-green hover:text-marlon-green/80 transition-colors"
-                >
-                  <Icon icon="mdi:cart-outline" className="h-6 w-6" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-marlon-green text-xs font-semibold text-white">
-                      {cartCount > 9 ? '9+' : cartCount}
-                    </span>
+                  {/* Quick Actions button */}
+                  <div className="relative" ref={quickActionsRef}>
+                    <button
+                      onClick={() => setShowQuickActions(!showQuickActions)}
+                      className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${
+                        showQuickActions 
+                          ? 'bg-marlon-green text-white rotate-45' 
+                          : 'bg-marlon-green text-white hover:bg-marlon-green/90'
+                      }`}
+                      aria-label="Actions rapides"
+                    >
+                      <Icon icon="mdi:plus" className="h-5 w-5" />
+                    </button>
+
+                    {/* Floating menu */}
+                    {showQuickActions && (
+                      <div 
+                        className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[100]"
+                        style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}
+                      >
+                        {quickActions.map((action, index) => (
+                          <Link
+                            key={index}
+                            href={action.href}
+                            onClick={() => setShowQuickActions(false)}
+                            className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <Icon icon={action.icon} className={`h-5 w-5 ${action.color}`} />
+                            <span className="text-sm font-medium text-gray-700">{action.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cart - only show in public context */}
+                  {!isAdmin && (
+                    <button
+                      onClick={() => setIsCartOpen(true)}
+                      className="relative p-2 text-marlon-green hover:text-marlon-green/80 transition-colors"
+                    >
+                      <Icon icon="mdi:cart-outline" className="h-6 w-6" />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-marlon-green text-xs font-semibold text-white">
+                          {cartCount > 9 ? '9+' : cartCount}
+                        </span>
+                      )}
+                    </button>
                   )}
-                </button>
+                </>
               )}
             </div>
           </div>

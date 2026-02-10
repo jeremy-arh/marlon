@@ -101,6 +101,7 @@ function SettingsContent() {
     instructions: '',
     is_default: false,
   });
+  const [addressSearchQuery, setAddressSearchQuery] = useState('');
 
 
   useEffect(() => {
@@ -613,6 +614,30 @@ function SettingsContent() {
               </button>
             </div>
 
+            {/* Search bar */}
+            {addresses.length > 0 && (
+              <div>
+                <div className="relative w-full">
+                  <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher une adresse..."
+                    value={addressSearchQuery}
+                    onChange={(e) => setAddressSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+                  />
+                  {addressSearchQuery && (
+                    <button
+                      onClick={() => setAddressSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <Icon icon="mdi:close" className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {addresses.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Icon icon="mdi:map-marker-off" className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -620,7 +645,17 @@ function SettingsContent() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {addresses.map((addr) => (
+                {addresses.filter(addr => {
+                  if (!addressSearchQuery.trim()) return true;
+                  const query = addressSearchQuery.toLowerCase();
+                  return (
+                    addr.name?.toLowerCase().includes(query) ||
+                    addr.address?.toLowerCase().includes(query) ||
+                    addr.city?.toLowerCase().includes(query) ||
+                    addr.postal_code?.toLowerCase().includes(query) ||
+                    addr.contact_name?.toLowerCase().includes(query)
+                  );
+                }).map((addr) => (
                   <div
                     key={addr.id}
                     className={`p-4 rounded-lg border ${
@@ -798,7 +833,7 @@ function SettingsContent() {
                   id="is_default"
                   checked={addressForm.is_default}
                   onChange={(e) => setAddressForm({ ...addressForm, is_default: e.target.checked })}
-                  className="h-4 w-4 text-marlon-green rounded border-gray-300 focus:ring-marlon-green"
+                  className="h-4 w-4 text-marlon-green accent-marlon-green rounded border-gray-300 focus:ring-marlon-green"
                 />
                 <label htmlFor="is_default" className="text-sm text-gray-700">
                   Définir comme adresse par défaut

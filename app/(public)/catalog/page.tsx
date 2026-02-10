@@ -5,10 +5,10 @@ import CatalogClient from './CatalogClient';
 export default async function CatalogPage() {
   const supabase = await createClient();
 
-  // Fetch all categories with images
+  // Fetch all categories with images and product_type
   const { data: categories } = await supabase
     .from('categories')
-    .select('id, name, description, image_url')
+    .select('id, name, description, image_url, product_type')
     .order('name');
 
   // Fetch all specialties
@@ -71,6 +71,159 @@ export default async function CatalogPage() {
     }
   });
 
+  // Fetch IT equipment products with full details for direct display
+  // Only parent products (parent_product_id IS NULL) — variants are child products
+  const { data: itProducts } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      reference,
+      description,
+      purchase_price_ht,
+      marlon_margin_percent,
+      brand_id,
+      product_type,
+      variant_data,
+      brands(id, name),
+      product_images(image_url, order_index),
+      product_categories(category_id)
+    `)
+    .eq('product_type', 'it_equipment')
+    .is('parent_product_id', null)
+    .order('name');
+
+  // Build itType -> products map using category_it_types as bridge
+  const itTypeProducts: Record<string, any[]> = {};
+  itProducts?.forEach((product: any) => {
+    const productCategoryIds = (product.product_categories || []).map((pc: any) => pc.category_id);
+    // For each category of this product, find the IT types linked to that category
+    productCategoryIds.forEach((catId: string) => {
+      const linkedItTypes = categoryItTypes[catId] || [];
+      linkedItTypes.forEach((itTypeId: string) => {
+        if (!itTypeProducts[itTypeId]) {
+          itTypeProducts[itTypeId] = [];
+        }
+        // Avoid duplicates
+        if (!itTypeProducts[itTypeId].find((p: any) => p.id === product.id)) {
+          itTypeProducts[itTypeId].push(product);
+        }
+      });
+    });
+  });
+
+  // Also create "all" IT products list (for when "Tous les équipements IT" is selected)
+  const allItProducts = itProducts || [];
+
+  // Fetch all medical equipment products for search
+  const { data: medicalProducts } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      reference,
+      description,
+      purchase_price_ht,
+      marlon_margin_percent,
+      brand_id,
+      product_type,
+      brands(id, name),
+      product_images(image_url, order_index)
+    `)
+    .eq('product_type', 'medical_equipment')
+    .is('parent_product_id', null)
+    .order('name');
+
+  // Get all leaser coefficients for price calculations
+  const { data: allCoefficients } = await supabase
+    .from('leaser_coefficients')
+    .select('coefficient, min_amount, max_amount')
+    .order('coefficient', { ascending: true });
+
+  // Helper: find the best coefficient for a given price HT
+  const findCoefficient = (priceHT: number): number => {
+    if (allCoefficients && allCoefficients.length > 0) {
+      const matching = allCoefficients.find(
+        (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
+      );
+      if (matching) return Number(matching.coefficient) / 100;
+      // Fallback: lowest coefficient
+      return Number(allCoefficients[0].coefficient) / 100;
+    }
+    return 0.035;
+  };
+
+  // Default coefficient for backward compat
+  const coefficient = allCoefficients && allCoefficients.length > 0
+    ? Number(allCoefficients[0].coefficient) / 100
+    : 0.035;
+
+  // Fetch ALL child products (variants) for IT parent products to compute cheapest price
+  const itProductIds = (itProducts || []).map((p: any) => p.id);
+  let allChildProducts: any[] = [];
+  if (itProductIds.length > 0) {
+    const { data: children } = await supabase
+      .from('products')
+      .select('id, parent_product_id, purchase_price_ht, marlon_margin_percent, variant_data, product_images(image_url, order_index)')
+      .in('parent_product_id', itProductIds);
+    allChildProducts = children || [];
+  }
+
+  // Build maps: product_id -> { cheapestPrice, cheapestImage, cheapestVariantData, cheapestProductId }
+  const productCheapestPrices: Record<string, number> = {};
+  const productCheapestImages: Record<string, string | null> = {};
+  const productCheapestVariantData: Record<string, Record<string, string>> = {};
+  const productCheapestId: Record<string, string> = {};
+  for (const product of (itProducts || [])) {
+    const items: { id: string; price: number; image: string | null; variantData: Record<string, string> | null }[] = [];
+    
+    // Main product price
+    const mainHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
+    const mainCoef = findCoefficient(mainHT);
+    const mainImage = product.product_images?.length > 0
+      ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
+      : null;
+    items.push({ id: product.id, price: mainHT * mainCoef, image: mainImage, variantData: product.variant_data || null });
+
+    // Child products prices
+    const children = allChildProducts.filter((c: any) => c.parent_product_id === product.id);
+    for (const child of children) {
+      if (child.purchase_price_ht && child.marlon_margin_percent) {
+        const cHT = Number(child.purchase_price_ht) * (1 + Number(child.marlon_margin_percent) / 100);
+        const cCoef = findCoefficient(cHT);
+        const cImage = child.product_images?.length > 0
+          ? [...child.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
+          : null;
+        items.push({ id: child.id, price: cHT * cCoef, image: cImage, variantData: child.variant_data || null });
+      }
+    }
+
+    if (items.length > 0) {
+      // Sort by price ascending to find cheapest
+      items.sort((a, b) => a.price - b.price);
+      productCheapestPrices[product.id] = items[0].price;
+      productCheapestImages[product.id] = items[0].image;
+      productCheapestId[product.id] = items[0].id;
+      if (items[0].variantData) {
+        productCheapestVariantData[product.id] = items[0].variantData;
+      }
+    }
+  }
+
+  // Calculate prices for medical products
+  for (const product of (medicalProducts || [])) {
+    const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
+    const coef = findCoefficient(priceHT);
+    const monthlyPrice = priceHT * coef;
+    const image = product.product_images?.length > 0
+      ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
+      : null;
+    
+    productCheapestPrices[product.id] = monthlyPrice;
+    productCheapestImages[product.id] = image;
+    productCheapestId[product.id] = product.id;
+  }
+
   return (
     <Suspense fallback={<div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" /></div>}>
       <CatalogClient 
@@ -80,6 +233,13 @@ export default async function CatalogPage() {
         categoryItTypes={categoryItTypes}
         specialties={specialties || []}
         itTypes={itTypes || []}
+        itTypeProducts={itTypeProducts}
+        allItProducts={allItProducts}
+        allMedicalProducts={medicalProducts || []}
+        coefficient={coefficient}
+        productCheapestPrices={productCheapestPrices}
+        productCheapestImages={productCheapestImages}
+        productCheapestId={productCheapestId}
       />
     </Suspense>
   );

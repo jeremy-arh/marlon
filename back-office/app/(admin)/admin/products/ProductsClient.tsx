@@ -201,10 +201,10 @@ export default function ProductsClient({ initialProducts, durations }: ProductsC
                                         {price ? (
                                           <div className="space-y-1">
                                             <div className="text-sm font-semibold text-black">
-                                              {price.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/mois
+                                              {price.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT/mois
                                             </div>
                                             <div className="text-xs text-gray-600">
-                                              Total: {price.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                              Total: {price.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT
                                             </div>
                                           </div>
                                         ) : (
@@ -216,64 +216,19 @@ export default function ProductsClient({ initialProducts, durations }: ProductsC
                                 </div>
                               </div>
 
-                              {/* Variantes avec leurs prix - Seulement pour produits IT */}
-                              {product.product_type === 'it_equipment' && product.variants && product.variants.length > 0 && (
+                              {/* Variantes — compteur + lien vers fiche */}
+                              {product.product_type === 'it_equipment' && product.variantCount > 0 && (
                                 <div className="bg-white rounded-md border border-gray-200 p-4">
-                                  <h4 className="text-sm font-semibold text-black mb-3">Variantes</h4>
-                                  <div className="space-y-4">
-                                    {product.variants.map((variant: any, variantIndex: number) => {
-                                      const variantFirstImage = Array.isArray(variant.images) && variant.images.length > 0 
-                                        ? variant.images[0] 
-                                        : null;
-                                      
-                                      return (
-                                      <div key={variant.id || variantIndex} className="border border-gray-200 rounded-md p-3 bg-gray-50">
-                                        <div className="flex items-center gap-3 mb-2">
-                                          {variantFirstImage ? (
-                                            <img
-                                              src={variantFirstImage}
-                                              alt={variant.displayName || `Variante #${variantIndex + 1}`}
-                                              className="h-12 w-12 rounded-md object-cover border border-gray-200 flex-shrink-0"
-                                            />
-                                          ) : (
-                                            <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                                              <Icon icon="mdi:image-off" className="h-6 w-6 text-gray-400" />
-                                            </div>
-                                          )}
-                                          <div className="text-xs font-medium text-gray-700">
-                                            {variant.displayName || `Variante #${variantIndex + 1}`}
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                          {durations.map((duration) => {
-                                            const variantPrice = variant.pricesByDuration?.[duration.months];
-                                            return (
-                                              <div
-                                                key={`${variant.id || variantIndex}-${duration.id}`}
-                                                className="rounded-md border border-gray-200 bg-white p-2"
-                                              >
-                                                <div className="text-[10px] font-medium text-gray-500 mb-1">
-                                                  {duration.months} mois
-                                                </div>
-                                                {variantPrice ? (
-                                                  <div className="space-y-0.5">
-                                                    <div className="text-xs font-semibold text-black">
-                                                      {variantPrice.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/mois
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-600">
-                                                      Total: {variantPrice.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                                                    </div>
-                                                  </div>
-                                                ) : (
-                                                  <div className="text-xs text-gray-400">Non disponible</div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                    })}
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-black">
+                                      {product.variantCount} variante{product.variantCount > 1 ? 's' : ''}
+                                    </h4>
+                                    <button
+                                      onClick={() => router.push(`/admin/products/${product.id}`)}
+                                      className="text-sm text-marlon-green hover:underline"
+                                    >
+                                      Gérer les variantes →
+                                    </button>
                                   </div>
                                 </div>
                               )}

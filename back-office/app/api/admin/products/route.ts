@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, reference, description, technical_info, product_type, serial_number, purchase_price_ht, marlon_margin_percent, supplier_id, brand_id, default_leaser_id, category_ids, specialty_ids, images } = body;
+    const { name, reference, description, technical_info, product_type, serial_number, purchase_price_ht, marlon_margin_percent, supplier_id, brand_id, default_leaser_id, category_ids, specialty_ids, images, variant_filter_ids, variant_data, parent_product_id } = body;
 
     if (!name || !purchase_price_ht || !marlon_margin_percent || !product_type) {
       return NextResponse.json({ error: 'Les champs nom, type, prix d\'achat et marge sont requis' }, { status: 400 });
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
         supplier_id: supplier_id || null,
         brand_id: brand_id || null,
         default_leaser_id: default_leaser_id || null,
+        variant_data: product_type === 'it_equipment' ? (variant_data || {}) : {},
+        parent_product_id: parent_product_id || null,
       })
       .select()
       .single();
@@ -91,6 +93,18 @@ export async function POST(request: NextRequest) {
       await serviceClient
         .from('product_specialties')
         .insert(specialtyRecords);
+    }
+
+    // Insert product variant filters if provided (only for IT equipment)
+    if (product_type === 'it_equipment' && variant_filter_ids && Array.isArray(variant_filter_ids) && variant_filter_ids.length > 0) {
+      const filterRecords = variant_filter_ids.map((filterId: string) => ({
+        product_id: product.id,
+        filter_id: filterId,
+      }));
+
+      await serviceClient
+        .from('product_variant_filters_junction')
+        .insert(filterRecords);
     }
 
     return NextResponse.json({ success: true, data: product });

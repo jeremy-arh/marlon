@@ -210,6 +210,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         delete newPrices[itemId];
         return newPrices;
       });
+      // Update cart counter in header
+      window.dispatchEvent(new CustomEvent('cart-updated'));
     } catch (error) {
       console.error('Error removing item:', error);
     }
@@ -230,6 +232,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         body: JSON.stringify({ quantity: newQuantity }),
       });
       fetchCart();
+      // Update cart counter in header
+      window.dispatchEvent(new CustomEvent('cart-updated'));
     } catch (error) {
       console.error('Error updating quantity:', error);
     }
@@ -385,8 +389,15 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                         )}
                       </div>
 
-                      {/* Quantity Controls */}
-                      <div className="flex items-start">
+                      {/* Quantity Controls & Delete */}
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          onClick={() => removeItem(item.id)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Icon icon="mdi:trash-can-outline" className="h-4.5 w-4.5" />
+                        </button>
                         <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity - 1)}

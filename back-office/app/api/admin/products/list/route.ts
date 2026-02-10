@@ -13,7 +13,7 @@ export async function GET() {
 
     const serviceClient = createServiceClient();
     
-    // Fetch products with basic relations
+    // Fetch products with basic relations — only parent/standalone products (not variants)
     const { data, error } = await serviceClient
       .from('products')
       .select(`
@@ -23,6 +23,7 @@ export async function GET() {
         default_leaser:leasers(name),
         product_images(image_url, order_index)
       `)
+      .is('parent_product_id', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -76,8 +77,6 @@ export async function GET() {
     }
 
     return NextResponse.json({ success: true, data: data || [] });
-
-    return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message },

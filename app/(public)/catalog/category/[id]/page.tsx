@@ -28,6 +28,7 @@ export default async function CategoryPage({
 
   const productIds = productCategories?.map((pc) => pc.product_id) || [];
 
+  // Only show parent products (not variants) in category listing
   const { data: products } = await supabase
     .from('products')
     .select(`
@@ -44,6 +45,7 @@ export default async function CategoryPage({
       product_images(image_url, order_index)
     `)
     .in('id', productIds.length > 0 ? productIds : ['00000000-0000-0000-0000-000000000000'])
+    .is('parent_product_id', null)
     .order('name');
 
   // Get all brands for filter

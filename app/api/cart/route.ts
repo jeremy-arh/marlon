@@ -67,51 +67,67 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { product_id, productId, quantity = 1, leasing_duration_months, durationMonths, variant_id } = body;
+    const { product_id, productId, quantity = 1, leasing_duration_months, durationMonths } = body;
     
     // Support both naming conventions
     const finalProductId = product_id || productId;
     const finalDurationMonths = leasing_duration_months || durationMonths;
 
+    if (!finalProductId) {
+      return NextResponse.json(
+        { error: 'product_id is required' },
+        { status: 400 }
+      );
+    }
+
     // Get or create cart
-    let { data: cart } = await supabase
+    let { data: cart, error: cartError } = await supabase
       .from('carts')
       .select('id')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    if (cartError) {
+      console.error('Error fetching cart:', cartError);
+    }
 
     if (!cart) {
-      const { data: newCart } = await supabase
+      const { data: newCart, error: createCartError } = await supabase
         .from('carts')
         .insert({ user_id: user.id })
         .select()
         .single();
 
+      if (createCartError) {
+        console.error('Error creating cart:', createCartError);
+        return NextResponse.json(
+          { error: 'Failed to create cart: ' + createCartError.message },
+          { status: 500 }
+        );
+      }
+
       cart = newCart;
     }
 
     if (!cart) {
-      throw new Error('Failed to create cart');
+      return NextResponse.json(
+        { error: 'Failed to create or retrieve cart' },
+        { status: 500 }
+      );
     }
 
     // Add item to cart (column is 'duration_months' in DB)
-    const insertData: any = {
-      cart_id: cart.id,
-      product_id: finalProductId,
-      quantity,
-      duration_months: finalDurationMonths,
-    };
-    
-    // Add variant_id if provided
-    if (variant_id) {
-      insertData.variant_id = variant_id;
-    }
-    
+    // Each variant is now a full product, no separate variant_id needed
     const { data: cartItem, error } = await supabase
       .from('cart_items')
-      .insert(insertData)
+      .insert({
+        cart_id: cart.id,
+        product_id: finalProductId,
+        quantity,
+        duration_months: finalDurationMonths,
+      })
       .select(`
         *,
         products(
@@ -123,7 +139,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      throw error;
+      console.error('Error inserting cart item:', error);
+      return NextResponse.json(
+        { error: 'Failed to add item: ' + error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ cartItem });

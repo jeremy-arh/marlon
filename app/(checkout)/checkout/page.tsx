@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import Icon from '@/components/Icon';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 
@@ -145,6 +144,12 @@ export default function CheckoutPage() {
       
       setCartItems(cartData.items);
       setCartId(cartData.cart?.id);
+
+      // Initialize selectedDuration from cart items (use the first item's duration, or default to 60)
+      const firstItemDuration = cartData.items[0]?.duration_months;
+      if (firstItemDuration && DURATION_OPTIONS.some(opt => opt.value === firstItemDuration)) {
+        setSelectedDuration(firstItemDuration);
+      }
 
       // Fetch user organization data
       const userResponse = await fetch('/api/user/organization');
@@ -548,17 +553,10 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
+      {/* Fixed Stepper Header */}
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/catalog" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-marlon-green rounded-lg flex items-center justify-center">
-                <Icon icon="mdi:leaf" className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-marlon-green">Marlon</span>
-            </Link>
-
+          <div className="flex items-center justify-center">
             {/* Steps indicator */}
             <div className="flex items-center gap-4">
               {[
@@ -593,8 +591,6 @@ export default function CheckoutPage() {
                 </div>
               ))}
             </div>
-
-            <div className="w-32" /> {/* Spacer */}
           </div>
         </div>
       </header>
@@ -634,7 +630,7 @@ export default function CheckoutPage() {
               <div>
                 <h1 className="text-2xl font-bold text-[#1a365d] mb-2">Ajoutez le détail de votre entreprise</h1>
                 <p className="text-gray-600 mb-6">
-                  Pour passer votre commande, donnez-nous plus d'informations sur votre entreprise.
+                  Pour passer votre commande, donnez-nous plus d&apos;informations sur votre entreprise.
                 </p>
 
                 <div className="space-y-4">
@@ -740,7 +736,7 @@ export default function CheckoutPage() {
                 {/* Benefits section */}
                 <div className="mt-12 pt-8 border-t border-gray-200">
                   <p className="text-center text-gray-600 mb-8">
-                    La 1ère marketplace de location d'équipements médicaux pensée et développée en collaboration avec des professionnels de santé.
+                    La 1ère marketplace de location d&apos;équipements médicaux pensée et développée en collaboration avec des professionnels de santé.
                   </p>
                   <div className="grid grid-cols-4 gap-4 text-center">
                     {[
@@ -764,7 +760,7 @@ export default function CheckoutPage() {
             {/* Step 2: Delivery */}
             {currentStep === 2 && (
               <div>
-                <h1 className="text-2xl font-bold text-[#1a365d] mb-2">Confirmer l'adresse de livraison</h1>
+                <h1 className="text-2xl font-bold text-[#1a365d] mb-2">Confirmer l&apos;adresse de livraison</h1>
                 <p className="text-gray-600 mb-6">
                   Merci de préciser à quelle adresse doit être livrée cette commande
                 </p>
@@ -1149,7 +1145,7 @@ export default function CheckoutPage() {
                     <div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
                         <Icon icon="mdi:card-account-details" className="h-5 w-5 text-blue-500" />
-                        Pièce d'identité <span className="text-red-500">*</span>
+                        Pièce d&apos;identité <span className="text-red-500">*</span>
                       </label>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -1217,7 +1213,7 @@ export default function CheckoutPage() {
 
                 {/* Company info recap */}
                 <div className="border border-gray-200 rounded-lg p-4 mb-6">
-                  <h3 className="font-medium text-gray-900 mb-2">Informations de l'entreprise</h3>
+                  <h3 className="font-medium text-gray-900 mb-2">Informations de l&apos;entreprise</h3>
                   <p className="text-sm text-gray-600">Nom légal : {companyData.name}</p>
                   <p className="text-sm text-gray-600">
                     Siège social : {companyData.address}, {companyData.postal_code} {companyData.city}, {companyData.country}
@@ -1301,7 +1297,7 @@ export default function CheckoutPage() {
 
           {/* Right sidebar - Summary */}
           <div className="w-96 flex-shrink-0">
-            <div className="sticky top-8">
+            <div className="sticky top-24">
               <div className="border border-gray-200 rounded-lg p-6 bg-white">
                 <h2 className="text-lg font-bold text-[#1a365d] mb-4">Récapitulatif</h2>
 
@@ -1358,7 +1354,7 @@ export default function CheckoutPage() {
 
                 {/* Summary box */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-gray-500 mb-3">Nombre d'articles: {totals.itemCount}</p>
+                  <p className="text-sm text-gray-500 mb-3">Nombre d&apos;articles: {totals.itemCount}</p>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="font-medium text-[#1a365d]">Loyer HT :</span>

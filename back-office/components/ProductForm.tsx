@@ -19,6 +19,7 @@ interface ProductDocument {
 
 interface ProductFormProps {
   product?: any;
+  parentProduct?: any; // When creating a variant, the parent product is provided
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -32,7 +33,8 @@ const FILE_TYPE_OPTIONS = [
   { value: 'datasheet', label: 'Fiche technique' },
 ];
 
-export default function ProductForm({ product, onSuccess, onCancel }: ProductFormProps) {
+export default function ProductForm({ product, parentProduct, onSuccess, onCancel }: ProductFormProps) {
+  const isVariantMode = !!parentProduct;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -49,22 +51,25 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
   const [productVariants, setProductVariants] = useState<any[]>([]);
   const [editingVariant, setEditingVariant] = useState<any | null>(null);
   const [leaserDurations, setLeaserDurations] = useState<any[]>([]);
+  // Source for initial values: product (edit mode) or parentProduct (variant creation)
+  const initSource = product || parentProduct;
   const [formData, setFormData] = useState({
     name: product?.name || '',
     reference: product?.reference || '',
     description: product?.description || '',
     technical_info: product?.technical_info || '',
-    product_type: product?.product_type || '',
+    product_type: initSource?.product_type || '',
     serial_number: product?.serial_number || '',
     purchase_price_ht: product?.purchase_price_ht?.toString() || '',
-    marlon_margin_percent: product?.marlon_margin_percent?.toString() || '',
-    supplier_id: product?.supplier_id || '',
-    brand_id: product?.brand_id || '',
-    default_leaser_id: product?.default_leaser_id || '',
+    marlon_margin_percent: product?.marlon_margin_percent?.toString() || initSource?.marlon_margin_percent?.toString() || '',
+    supplier_id: initSource?.supplier_id || '',
+    brand_id: initSource?.brand_id || '',
+    default_leaser_id: initSource?.default_leaser_id || '',
     category_ids: [],
     specialty_ids: [],
     images: [],
     variant_filter_ids: [],
+    variant_data: product?.variant_data || {},
   });
 
   useEffect(() => {
@@ -129,8 +134,31 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
       if (product.variant_filter_ids && Array.isArray(product.variant_filter_ids)) {
         setFormData(prev => ({ ...prev, variant_filter_ids: product.variant_filter_ids }));
       }
+
+      // Load variant data (filter values for the main product)
+      if (product.variant_data && typeof product.variant_data === 'object') {
+        setFormData(prev => ({ ...prev, variant_data: product.variant_data }));
+      }
     }
-  }, [product]);
+
+    // Pre-fill from parent product when creating a variant
+    if (isVariantMode && parentProduct) {
+      // Load parent's categories
+      if (parentProduct.product_categories && Array.isArray(parentProduct.product_categories)) {
+        const categoryIds = parentProduct.product_categories.map((pc: any) => pc.category_id);
+        setFormData(prev => ({ ...prev, category_ids: categoryIds }));
+      }
+      // Load parent's specialties
+      if (parentProduct.product_specialties && Array.isArray(parentProduct.product_specialties)) {
+        const specialtyIds = parentProduct.product_specialties.map((ps: any) => ps.specialty_id);
+        setFormData(prev => ({ ...prev, specialty_ids: specialtyIds }));
+      }
+      // Load parent's variant filter IDs
+      if (parentProduct.variant_filter_ids && Array.isArray(parentProduct.variant_filter_ids)) {
+        setFormData(prev => ({ ...prev, variant_filter_ids: parentProduct.variant_filter_ids }));
+      }
+    }
+  }, [product, parentProduct]);
 
   // Filtrer les catégories selon le type de produit
   useEffect(() => {
@@ -445,6 +473,8 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
           specialty_ids: formData.product_type === 'medical_equipment' ? formData.specialty_ids : [],
           images: formData.images,
           variant_filter_ids: formData.product_type === 'it_equipment' ? formData.variant_filter_ids : [],
+          variant_data: formData.product_type === 'it_equipment' ? formData.variant_data : {},
+          parent_product_id: isVariantMode ? parentProduct.id : (product?.parent_product_id || null),
         }),
       });
 
@@ -460,32 +490,41 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
       const productId = product?.id || data.data?.id;
       if (productId) {
         await saveDocuments(productId);
-        
-        // Save variants if IT equipment
-        if (formData.product_type === 'it_equipment') {
-          await saveVariants(productId);
-        }
       }
 
       // Reset form for mass creation
       if (!product) {
-        setSuccessMessage('Produit créé avec succès !');
-        setFormData({
-          name: '',
-          reference: '',
-          description: '',
-          technical_info: '',
-          product_type: '',
-          serial_number: '',
-          purchase_price_ht: '',
-          marlon_margin_percent: '',
-          supplier_id: '',
-          brand_id: '',
-          default_leaser_id: '',
-          category_ids: [],
-          specialty_ids: [],
-          images: [],
-        });
+        setSuccessMessage(isVariantMode ? 'Variante créée avec succès !' : 'Produit créé avec succès !');
+        if (isVariantMode) {
+          // En mode variante, garder les champs hérités du parent, reset seulement les champs spécifiques
+          setFormData(prev => ({
+            ...prev,
+            name: '',
+            reference: '',
+            purchase_price_ht: '',
+            images: [],
+            variant_data: {},
+          }));
+        } else {
+          setFormData({
+            name: '',
+            reference: '',
+            description: '',
+            technical_info: '',
+            product_type: '',
+            serial_number: '',
+            purchase_price_ht: '',
+            marlon_margin_percent: '',
+            supplier_id: '',
+            brand_id: '',
+            default_leaser_id: '',
+            category_ids: [],
+            specialty_ids: [],
+            images: [],
+            variant_filter_ids: [],
+            variant_data: {},
+          });
+        }
         setDocuments([]);
         setNewDocForm({ name: '', file_url: '', file_type: 'pdf', description: '' });
         setError(null);
@@ -517,6 +556,16 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
       )}
 
       <div className="space-y-4">
+        {/* Bandeau info variante */}
+        {isVariantMode && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs font-medium text-blue-800">
+              <Icon icon="mdi:information" className="inline w-4 h-4 mr-1" />
+              Création d&apos;une variante de &quot;{parentProduct.name}&quot; — Renseignez le nom, prix, marge, images et les valeurs de filtres.
+            </p>
+          </div>
+        )}
+
         {/* Section: Informations générales */}
         <div className="border-b border-gray-200 pb-3">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Informations générales</h2>
@@ -563,6 +612,8 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
             </div>
             </div>
 
+            {/* Type, catégories, spécialités — masqués en mode variante (hérité du parent) */}
+            {!isVariantMode && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="product_type" className="mb-1 block text-xs font-medium text-black">
@@ -621,6 +672,71 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
                 />
               </div>
             </div>
+            )}
+
+            {/* Filtres de variantes - sélection des filtres pour le parent */}
+            {formData.product_type === 'it_equipment' && variantFilters.length > 0 && !isVariantMode && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-black">
+                  Filtres disponibles pour ce produit
+                </label>
+                <MultiSelect
+                  options={variantFilters.map((filter) => ({
+                    value: filter.id,
+                    label: filter.display_name || filter.label || filter.name,
+                  }))}
+                  value={formData.variant_filter_ids}
+                  onChange={(values) => setFormData({ ...formData, variant_filter_ids: values })}
+                  placeholder="Sélectionner les filtres à utiliser pour ce produit"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Sélectionnez les filtres (ex: Couleur, Stockage) qui seront proposés au client sur ce produit
+                </p>
+              </div>
+            )}
+
+            {/* Valeurs des filtres — visible pour parent ET variante */}
+            {formData.product_type === 'it_equipment' && formData.variant_filter_ids.length > 0 && variantFilters.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-3">
+                <label className="mb-2 block text-xs font-semibold text-gray-900">
+                  {isVariantMode ? 'Valeurs des filtres pour cette variante' : 'Paramètres du produit principal'}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {variantFilters
+                    .filter((filter) => formData.variant_filter_ids.includes(filter.id))
+                    .map((filter) => {
+                      const options = filter.product_variant_filter_options || [];
+                      return (
+                        <div key={filter.id}>
+                          <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                            {filter.display_name || filter.label || filter.name}
+                          </label>
+                          <select
+                            value={formData.variant_data?.[filter.name] || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              variant_data: {
+                                ...prev.variant_data,
+                                [filter.name]: e.target.value,
+                              },
+                            }))}
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                          >
+                            <option value="">Sélectionner...</option>
+                            {options
+                              .sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+                              .map((option: any) => (
+                              <option key={option.id} value={option.value}>
+                                {option.label || option.value}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -758,207 +874,15 @@ export default function ProductForm({ product, onSuccess, onCancel }: ProductFor
           </div>
         </div>
 
-        {/* Section: Variantes - Only for IT Equipment */}
-        {formData.product_type === 'it_equipment' && (
+        {/* Section: Variantes info - Only for IT Equipment parent products (not when creating variant) */}
+        {formData.product_type === 'it_equipment' && product && !isVariantMode && !product.parent_product_id && (
           <div className="border-b border-gray-200 pb-3">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-900">Variantes ({productVariants.length})</h2>
-              <button
-                type="button"
-                onClick={handleAddVariant}
-                className="px-2 py-1 text-xs bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 flex items-center gap-1"
-              >
-                <Icon icon="mdi:plus" className="w-3 h-3" />
-                Ajouter une variante
-              </button>
-            </div>
-
-            {/* Sélection des filtres de variantes pour le produit principal */}
-            {variantFilters.length > 0 && (
-              <div className="mb-3">
-                <label className="mb-1 block text-xs font-medium text-black">
-                  Filtres de variantes disponibles
-                </label>
-                <MultiSelect
-                  options={variantFilters.map((filter) => ({
-                    value: filter.id,
-                    label: filter.display_name || filter.name,
-                  }))}
-                  value={formData.variant_filter_ids}
-                  onChange={(values) => setFormData({ ...formData, variant_filter_ids: values })}
-                  placeholder="Sélectionner les filtres à utiliser pour ce produit"
-                />
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Sélectionnez les filtres qui seront disponibles pour créer des variantes de ce produit
-                </p>
-              </div>
-            )}
-
-            {variantFilters.length === 0 ? (
-              <p className="text-xs text-gray-500 py-2">
-                Aucun filtre défini. Configurez les filtres dans les Paramètres.
+            <div className="bg-blue-50 rounded-lg p-3">
+              <p className="text-xs text-blue-800">
+                <Icon icon="mdi:information" className="inline w-4 h-4 mr-1" />
+                Les variantes sont gérées depuis la fiche produit. Enregistrez ce produit puis ajoutez des variantes depuis sa fiche.
               </p>
-            ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {productVariants.map((variant, index) => (
-                  <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-700">Variante #{index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveVariant(index)}
-                        className="p-1 text-gray-400 hover:text-red-600"
-                      >
-                        <Icon icon="mdi:close" className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Filtres - Seulement ceux sélectionnés pour le produit principal */}
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      {variantFilters
-                        .filter((filter) => formData.variant_filter_ids.includes(filter.id))
-                        .map((filter) => (
-                          <div key={filter.id}>
-                            <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                              {filter.display_name || filter.name}
-                            </label>
-                            <select
-                              value={variant.variant_data?.[filter.name] || ''}
-                              onChange={(e) => handleUpdateVariantFilter(index, filter.id, e.target.value)}
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
-                            >
-                              <option value="">Sélectionner...</option>
-                              {filter.product_variant_filter_options?.map((option: any) => (
-                                <option key={option.id} value={option.value}>
-                                  {option.display_value || option.value}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                      {formData.variant_filter_ids.length === 0 && (
-                        <p className="text-[10px] text-gray-500 col-span-2">
-                          Sélectionnez d&apos;abord les filtres de variantes disponibles ci-dessus
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Prix et informations */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                          Prix HT fournisseur (€) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={variant.purchase_price_ht || ''}
-                          onChange={(e) => handleUpdateVariant(index, 'purchase_price_ht', e.target.value)}
-                          required
-                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                          Marge MARLON (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={variant.marlon_margin_percent || formData.marlon_margin_percent || ''}
-                          onChange={(e) => handleUpdateVariant(index, 'marlon_margin_percent', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Prix calculés */}
-                    {variant.calculated_monthly_price && (
-                      <div className="p-2 bg-green-50 rounded-lg">
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div>
-                            <span className="text-gray-500">Prix mensuel:</span>
-                            <span className="font-semibold text-green-700 ml-1">
-                              {variant.calculated_monthly_price.toFixed(2)} €
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Prix total:</span>
-                            <span className="font-semibold text-green-700 ml-1">
-                              {variant.calculated_total_price?.toFixed(2)} €
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Coefficient:</span>
-                            <span className="font-semibold text-green-700 ml-1">
-                              {variant.coefficient_used?.toFixed(2)}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stock et disponibilité */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                          Stock
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={variant.stock_quantity !== undefined ? variant.stock_quantity : ''}
-                          onChange={(e) => handleUpdateVariant(index, 'stock_quantity', e.target.value ? parseInt(e.target.value) : 0)}
-                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 pt-5">
-                        <input
-                          type="checkbox"
-                          id={`variant-active-${index}`}
-                          checked={variant.is_active !== false}
-                          onChange={(e) => handleUpdateVariant(index, 'is_active', e.target.checked)}
-                          className="w-4 h-4 text-marlon-green border-gray-300 rounded focus:ring-marlon-green"
-                        />
-                        <label htmlFor={`variant-active-${index}`} className="text-[10px] font-medium text-gray-700">
-                          Actif
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Images de la variante */}
-                    <div>
-                      <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                        Images de la variante
-                      </label>
-                      <ImageUpload
-                        images={Array.isArray(variant.images) ? variant.images : []}
-                        onChange={(images) => handleUpdateVariant(index, 'images', images)}
-                        bucket="product-images"
-                        maxImages={5}
-                        label=""
-                      />
-                    </div>
-
-                    {/* Numéro de série */}
-                    <div>
-                      <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Numéro de série</label>
-                      <input
-                        type="text"
-                        value={variant.sku || ''}
-                        onChange={(e) => handleUpdateVariant(index, 'sku', e.target.value)}
-                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
-                      />
-                    </div>
-                  </div>
-                ))}
-                {productVariants.length === 0 && (
-                  <p className="text-xs text-gray-500 text-center py-4">
-                    Cliquez sur &quot;Ajouter une variante&quot; pour créer une nouvelle variante
-                  </p>
-                )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 

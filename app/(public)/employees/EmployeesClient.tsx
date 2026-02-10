@@ -57,6 +57,7 @@ export default function EmployeesClient({
   const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [invitations, setInvitations] = useState<Invitation[]>(initialInvitations);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Invitation modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -147,6 +148,24 @@ export default function EmployeesClient({
     return STATUS_LABELS[status] || STATUS_LABELS.pending;
   };
 
+  // Filter employees and invitations based on search
+  const filteredInvitations = invitations.filter(inv => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return inv.email.toLowerCase().includes(query);
+  });
+
+  const filteredEmployees = employees.filter(emp => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      emp.email?.toLowerCase().includes(query) ||
+      emp.first_name?.toLowerCase().includes(query) ||
+      emp.last_name?.toLowerCase().includes(query) ||
+      `${emp.first_name} ${emp.last_name}`.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader title="Employés" />
@@ -208,18 +227,40 @@ export default function EmployeesClient({
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="mb-6">
+        <div className="relative w-full">
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher un employé..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <Icon icon="mdi:close" className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-6">
         {/* Pending invitations */}
-        {invitations.length > 0 && (
+        {filteredInvitations.length > 0 && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
               <h3 className="font-semibold text-[#1a365d] flex items-center gap-2">
                 <Icon icon="mdi:email-clock" className="h-5 w-5 text-yellow-600" />
-                Invitations en attente ({invitations.length})
+                Invitations en attente ({filteredInvitations.length})
               </h3>
             </div>
             <div className="divide-y divide-gray-100">
-              {invitations.map((invitation) => (
+              {filteredInvitations.map((invitation) => (
                 <div key={invitation.id} className="px-6 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
@@ -255,14 +296,14 @@ export default function EmployeesClient({
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="font-semibold text-[#1a365d]">Membres de l'équipe</h3>
           </div>
-          {employees.length === 0 ? (
+          {filteredEmployees.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <Icon icon="mdi:account-group" className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Aucun employé trouvé</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {employees.map((employee) => {
+              {filteredEmployees.map((employee) => {
                 const statusInfo = getStatusInfo(employee.status);
                 const isCurrentUser = employee.user_id === currentUserId;
                 const hasName = employee.first_name || employee.last_name;

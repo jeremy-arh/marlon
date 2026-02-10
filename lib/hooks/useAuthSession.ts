@@ -34,9 +34,9 @@ export function useAuthSession() {
           setIsLoading(false);
         }
 
-        // Si pas de session, rediriger vers login
+        // Si pas de session, rediriger vers le catalogue
         if (!session) {
-          router.push('/login');
+          router.push('/catalog');
           return;
         }
       } catch (error) {
@@ -57,9 +57,9 @@ export function useAuthSession() {
         if (mounted) {
           setIsAuthenticated(!!session);
           
-          // Si déconnexion ou expiration, rediriger vers login
+          // Si déconnexion ou expiration, rediriger vers le catalogue
           if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
-            router.push('/login');
+            router.push('/catalog');
           }
           
           // Si reconnexion, recharger la page pour mettre à jour les données

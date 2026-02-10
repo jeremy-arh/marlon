@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -17,6 +17,8 @@ interface Product {
   purchase_price_ht: number;
   marlon_margin_percent: number;
   product_type?: string;
+  parent_product_id?: string | null;
+  variant_data?: Record<string, string>;
   brands?: { name: string };
   product_images?: { image_url: string; order_index: number }[];
 }
@@ -34,6 +36,24 @@ interface RelatedProduct {
   product_images?: { image_url: string; order_index: number }[];
 }
 
+interface SiblingProduct {
+  id: string;
+  name: string;
+  purchase_price_ht: number;
+  marlon_margin_percent: number;
+  variant_data?: Record<string, string>;
+  parent_product_id?: string | null;
+  product_images?: { image_url: string; order_index: number }[];
+}
+
+interface VariantFilterDef {
+  id: string;
+  name: string;
+  label: string;
+  display_name?: string;
+  product_variant_filter_options: { id: string; value: string; label: string; order_index: number }[];
+}
+
 interface ProductDetailClientProps {
   product: Product;
   category: Category | null;
@@ -43,8 +63,12 @@ interface ProductDetailClientProps {
   itTypeId: string | null;
   itTypeName: string | null;
   coefficient: number;
+  currentMonthlyPrice: number;
+  cheapestMonthlyPrice: number | null;
   bestDurationMonths: number;
   relatedProducts: RelatedProduct[];
+  siblings: SiblingProduct[];
+  variantFilterDefs: VariantFilterDef[];
 }
 
 const getProductTypeLabel = (type: string): string => {
@@ -69,163 +93,106 @@ export default function ProductDetailClient({
   itTypeId,
   itTypeName,
   coefficient,
+  currentMonthlyPrice,
+  cheapestMonthlyPrice,
   bestDurationMonths,
   relatedProducts,
+  siblings,
+  variantFilterDefs,
 }: ProductDetailClientProps) {
   const router = useRouter();
   const [addingToCart, setAddingToCart] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  
-  // Variants state
-  const [variantFilters, setVariantFilters] = useState<any[]>([]);
-  const [productVariants, setProductVariants] = useState<any[]>([]);
-  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
-  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
-  const [variantMonthlyPrice, setVariantMonthlyPrice] = useState<number | null>(null);
-  const [variantImages, setVariantImages] = useState<string[]>([]);
+
+  // Has variants? (more than just the current product in the group)
+  const hasVariants = siblings.length > 1 && variantFilterDefs.length > 0;
+
+  // Build the selected filters from the current product's variant_data
+  const currentFilters = useMemo(() => {
+    if (!hasVariants || !product.variant_data) return {};
+    return product.variant_data;
+  }, [product.variant_data, hasVariants]);
+
+  // Build available filter options from ALL siblings' variant_data
+  const filterOptions = useMemo(() => {
+    if (!hasVariants) return {};
+    const options: Record<string, Set<string>> = {};
+    for (const sibling of siblings) {
+      if (sibling.variant_data && typeof sibling.variant_data === 'object') {
+        for (const [key, value] of Object.entries(sibling.variant_data)) {
+          if (!options[key]) options[key] = new Set();
+          if (value) options[key].add(value);
+        }
+      }
+    }
+    return options;
+  }, [siblings, hasVariants]);
 
   useEffect(() => {
-    // Vérifier l'authentification au chargement
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setIsAuthenticated(!!user);
     };
     checkAuth();
 
-    // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session?.user);
     });
 
-    // Charger les variantes et filtres si produit IT
-    if (productType === 'it_equipment') {
-      loadVariantsAndFilters();
-    }
-
     return () => {
       subscription.unsubscribe();
     };
-  }, [productType]);
+  }, []);
 
-  const loadVariantsAndFilters = async () => {
-    try {
-      const [variantsRes, filtersRes] = await Promise.all([
-        fetch(`/api/products/${product.id}/variants`),
-        fetch('/api/product-variant-filters'),
-      ]);
+  // When a filter changes, find the matching sibling and navigate to its page
+  const handleFilterChange = (filterName: string, value: string) => {
+    // Build the new desired variant_data
+    const newFilters = { ...currentFilters, [filterName]: value };
 
-      const variantsData = await variantsRes.json();
-      const filtersData = await filtersRes.json();
-
-      if (variantsData.success) {
-        setProductVariants(variantsData.data || []);
-      }
-      if (filtersData.success) {
-        setVariantFilters(filtersData.data || []);
-      }
-    } catch (err) {
-      console.error('Error loading variants:', err);
-    }
-  };
-
-  // Filtrer les variantes selon les sélections
-  useEffect(() => {
-    if (productVariants.length === 0 || variantFilters.length === 0) {
-      setSelectedVariant(null);
-      setVariantMonthlyPrice(null);
-      return;
-    }
-
-    // Vérifier que tous les filtres sont sélectionnés
-    const allFiltersSelected = variantFilters.every(filter => selectedFilters[filter.name]);
-
-    if (!allFiltersSelected) {
-      setSelectedVariant(null);
-      setVariantMonthlyPrice(null);
-      return;
-    }
-
-    // Trouver la variante qui correspond exactement aux filtres sélectionnés
-    const matchingVariant = productVariants.find((variant) => {
-      const variantData = variant.variant_data || {};
-      return variantFilters.every((filter) => {
-        const selectedValue = selectedFilters[filter.name];
-        return variantData[filter.name] === selectedValue;
+    // Find the sibling that matches ALL current filters
+    const matchingSibling = siblings.find(sibling => {
+      if (!sibling.variant_data || typeof sibling.variant_data !== 'object') return false;
+      return variantFilterDefs.every(filterDef => {
+        const desiredValue = newFilters[filterDef.name];
+        if (!desiredValue) return true; // Filter not selected yet, skip
+        return sibling.variant_data?.[filterDef.name] === desiredValue;
       });
     });
 
-    setSelectedVariant(matchingVariant || null);
-
-    // Mettre à jour les images de la variante sélectionnée
-    if (matchingVariant && Array.isArray(matchingVariant.images) && matchingVariant.images.length > 0) {
-      setVariantImages(matchingVariant.images);
-      setSelectedImageIndex(0); // Réinitialiser l'index d'image
-    } else {
-      setVariantImages([]);
-      setSelectedImageIndex(0); // Réinitialiser l'index d'image
+    if (matchingSibling && matchingSibling.id !== product.id) {
+      // Navigate to the matching sibling's product page
+      router.push(`/catalog/product/${matchingSibling.id}`);
     }
-
-    // Calculer le prix de la variante sélectionnée
-    if (matchingVariant && matchingVariant.purchase_price_ht && matchingVariant.marlon_margin_percent) {
-      const price = calculateMonthlyPrice(
-        parseFloat(matchingVariant.purchase_price_ht.toString()),
-        parseFloat(matchingVariant.marlon_margin_percent.toString())
-      );
-      setVariantMonthlyPrice(price);
-    } else {
-      setVariantMonthlyPrice(null);
-    }
-  }, [selectedFilters, productVariants, variantFilters, coefficient]);
-
-  // Vérifier si la variante sélectionnée est disponible
-  // Une variante est disponible si :
-  // - Elle existe (selectedVariant n'est pas null)
-  // - Elle est active (is_active !== false)
-  // - Le stock est > 0 (si stock_quantity est défini) ou non géré (null/undefined)
-  const isVariantAvailable = selectedVariant && 
-    selectedVariant.is_active !== false && 
-    (selectedVariant.stock_quantity === null || 
-     selectedVariant.stock_quantity === undefined || 
-     (typeof selectedVariant.stock_quantity === 'number' && selectedVariant.stock_quantity > 0));
-
-  const handleFilterChange = (filterName: string, value: string) => {
-    setSelectedFilters(prev => ({
-      ...prev,
-      [filterName]: value,
-    }));
+    // If no match found, do nothing (stay on current page)
   };
 
-  // Calculate monthly price TTC
+  // Calculate monthly price for related products
   const calculateMonthlyPrice = (purchasePrice: number, marginPercent: number) => {
     const priceHT = purchasePrice * (1 + marginPercent / 100);
-    const monthlyHT = priceHT * coefficient;
-    const monthlyTTC = monthlyHT * 1.2; // 20% TVA
-    return monthlyTTC;
+    return priceHT * coefficient;
   };
 
-  const monthlyPrice = variantMonthlyPrice !== null 
-    ? variantMonthlyPrice 
-    : calculateMonthlyPrice(product.purchase_price_ht, product.marlon_margin_percent);
+  // Determine price to display
+  const displayPrice = currentMonthlyPrice;
+  const startingPrice = cheapestMonthlyPrice ?? currentMonthlyPrice;
 
   const handleAddToCart = async () => {
-    // Vérifier l'authentification avant d'ajouter au panier
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      // Rediriger vers la page de login avec le paramètre redirect
-      router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.id}`)}`);
-      return;
-    }
-
-    // Pour les produits IT avec variantes, vérifier qu'une variante est sélectionnée
-    if (productType === 'it_equipment' && variantFilters.length > 0 && !selectedVariant) {
-      alert('Veuillez sélectionner toutes les options pour continuer');
-      return;
-    }
-
     setAddingToCart(true);
+    setAddedToCart(false);
+
     try {
+      // Check authentication first
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setAddingToCart(false);
+        router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.id}`)}`);
+        return;
+      }
+
+      // Each variant is its own product, so product_id is always the current product
       const response = await fetch('/api/cart', {
         method: 'POST',
         headers: {
@@ -235,14 +202,11 @@ export default function ProductDetailClient({
           product_id: product.id,
           quantity: 1,
           leasing_duration_months: bestDurationMonths,
-          variant_id: selectedVariant?.id || null,
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        // Si l'erreur est 401 (Unauthorized), rediriger vers login
+        const data = await response.json().catch(() => ({}));
         if (response.status === 401) {
           router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.id}`)}`);
           return;
@@ -250,10 +214,18 @@ export default function ProductDetailClient({
         throw new Error(data.error || 'Erreur lors de l\'ajout au panier');
       }
 
-      // Refresh page to update cart count
-      window.location.reload();
+      // Success! Show confirmation and update cart count
+      setAddedToCart(true);
+      
+      // Dispatch custom event to update cart counter in header
+      window.dispatchEvent(new CustomEvent('cart-updated'));
+
+      // Reset the success message after 3 seconds
+      setTimeout(() => setAddedToCart(false), 3000);
+
     } catch (error: any) {
-      alert(error.message || 'Une erreur est survenue');
+      console.error('Erreur ajout panier:', error);
+      alert(error.message || 'Une erreur est survenue lors de l\'ajout au panier');
     } finally {
       setAddingToCart(false);
     }
@@ -326,148 +298,130 @@ export default function ProductDetailClient({
         <div className="grid grid-cols-2 gap-8">
           {/* Left: Product images */}
           <div>
-            {(() => {
-              const displayImages = variantImages.length > 0 ? variantImages : images.map((img: any) => img.image_url || img);
-              return displayImages.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="relative aspect-square w-full bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <Image
-                      src={displayImages[selectedImageIndex] || displayImages[0]}
-                      alt={product.name}
-                      fill
-                      className="object-contain p-4"
-                      priority
-                    />
+            {images.length > 0 ? (
+              <div className="space-y-3">
+                <div className="relative aspect-square w-full bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <Image
+                    src={images[selectedImageIndex]?.image_url || images[0].image_url}
+                    alt={product.name}
+                    fill
+                    className="object-contain p-4"
+                    priority
+                  />
+                </div>
+                {images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto">
+                    {images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`relative w-14 h-14 flex-shrink-0 rounded-lg border overflow-hidden ${
+                          selectedImageIndex === idx ? 'border-marlon-green' : 'border-gray-200'
+                        }`}
+                      >
+                        <Image
+                          src={img.image_url}
+                          alt={`${product.name} - ${idx + 1}`}
+                          fill
+                          className="object-contain p-1"
+                        />
+                      </button>
+                    ))}
                   </div>
-                  {displayImages.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto">
-                      {displayImages.map((imgUrl: string, idx: number) => (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedImageIndex(idx)}
-                          className={`relative w-14 h-14 flex-shrink-0 rounded-lg border overflow-hidden ${
-                            selectedImageIndex === idx ? 'border-marlon-green' : 'border-gray-200'
-                          }`}
-                        >
-                          <Image
-                            src={imgUrl}
-                            alt={`${product.name} - ${idx + 1}`}
-                            fill
-                            className="object-contain p-1"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="aspect-square w-full bg-white rounded-lg border border-gray-200 flex items-center justify-center">
-                  <span className="text-gray-400">Pas d'image</span>
-                </div>
-              );
-            })()}
+                )}
+              </div>
+            ) : (
+              <div className="aspect-square w-full bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+                <span className="text-gray-400">Pas d&apos;image</span>
+              </div>
+            )}
           </div>
 
           {/* Right: Product details */}
           <div className="space-y-4">
-            {/* Variants filters - Only for IT equipment */}
-            {productType === 'it_equipment' && variantFilters.length > 0 && (
-              <div className="space-y-4">
-                {variantFilters.map((filter) => {
-                  const options = filter.product_variant_filter_options || [];
-                  // Récupérer les valeurs uniques disponibles dans les variantes actives
-                  const availableValues = new Set(
-                    productVariants
-                      .map(v => v.variant_data?.[filter.name])
-                      .filter(Boolean)
-                  );
-                  const availableOptions = options.filter(opt => availableValues.has(opt.value));
-
-                  if (availableOptions.length === 0) return null;
-
-                  return (
-                    <div key={filter.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                      <h3 className="text-base font-semibold text-[#1a365d] mb-3">{filter.label}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {availableOptions.map((option: any) => {
-                          const isSelected = selectedFilters[filter.name] === option.value;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              onClick={() => handleFilterChange(filter.name, option.value)}
-                              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                                isSelected
-                                  ? 'bg-marlon-green text-white shadow-sm'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Price and add to cart */}
+            {/* Price and add to cart - Always on top */}
             <div className="flex items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
               <div>
-                {productType === 'it_equipment' && variantFilters.length > 0 && selectedVariant ? (
+                {hasVariants ? (
                   <>
                     <span className="text-gray-600">Prix : </span>
-                    <span className="text-xl font-bold text-gray-900">{monthlyPrice.toFixed(2)} € TTC</span>
+                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € HT</span>
                     <span className="text-gray-600"> /mois</span>
                   </>
                 ) : (
                   <>
                     <span className="text-gray-600">A partir de : </span>
-                    <span className="text-xl font-bold text-gray-900">{monthlyPrice.toFixed(2)} € TTC</span>
+                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € HT</span>
                     <span className="text-gray-600"> /mois</span>
                   </>
                 )}
               </div>
-              {productType === 'it_equipment' && variantFilters.length > 0 ? (
-                (!selectedVariant || !isVariantAvailable) ? (
-                  <div className="px-6 py-2.5 bg-gray-200 text-gray-600 font-medium rounded-full flex-shrink-0">
-                    Non disponible
-                  </div>
+              <button
+                onClick={handleAddToCart}
+                disabled={addingToCart || addedToCart}
+                className={`flex items-center gap-2 px-6 py-2.5 font-medium rounded-full transition-colors disabled:cursor-not-allowed flex-shrink-0 ${
+                  addedToCart 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-marlon-green text-white hover:bg-[#00A870] disabled:opacity-50'
+                }`}
+              >
+                {addingToCart ? (
+                  <>
+                    <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                    <span>Ajout...</span>
+                  </>
+                ) : addedToCart ? (
+                  <>
+                    <Icon icon="mdi:check" className="h-5 w-5" />
+                    <span>Ajouté !</span>
+                  </>
                 ) : (
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={addingToCart}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-marlon-green text-white font-medium rounded-full hover:bg-[#00A870] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                  >
-                    {addingToCart ? (
-                      <>
-                        <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
-                        <span>Ajout...</span>
-                      </>
-                    ) : (
-                      <span>Ajouter au panier</span>
-                    )}
-                  </button>
-                )
-              ) : (
-                <button
-                  onClick={handleAddToCart}
-                  disabled={addingToCart}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-marlon-green text-white font-medium rounded-full hover:bg-[#00A870] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                >
-                  {addingToCart ? (
-                    <>
-                      <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
-                      <span>Ajout...</span>
-                    </>
-                  ) : (
+                  <>
+                    <Icon icon="mdi:cart-plus" className="h-5 w-5" />
                     <span>Ajouter au panier</span>
-                  )}
-                </button>
-              )}
+                  </>
+                )}
+              </button>
             </div>
+
+            {/* Variant filters as dropdowns */}
+            {hasVariants && (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                {variantFilterDefs.map((filterDef) => {
+                  // Get available values from siblings for this filter
+                  const availableValues = filterOptions[filterDef.name] || new Set();
+                  
+                  // Only show filter options that exist in actual siblings
+                  const filteredOptions = filterDef.product_variant_filter_options
+                    .filter(opt => availableValues.has(opt.value))
+                    .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+                  if (filteredOptions.length === 0) return null;
+
+                  const currentValue = currentFilters[filterDef.name] || '';
+
+                  return (
+                    <div key={filterDef.id}>
+                      <label className="block text-sm font-semibold text-[#1a365d] mb-1.5">
+                        {filterDef.display_name || filterDef.label || filterDef.name}
+                      </label>
+                      <select
+                        value={currentValue}
+                        onChange={(e) => handleFilterChange(filterDef.name, e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent appearance-none cursor-pointer"
+                      >
+                        <option value="" disabled>Sélectionner {(filterDef.display_name || filterDef.label || filterDef.name).toLowerCase()}</option>
+                        {filteredOptions.map((option) => (
+                          <option key={option.id} value={option.value}>
+                            {option.label || option.value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Caractéristiques */}
             <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -503,7 +457,7 @@ export default function ProductDetailClient({
         {relatedProducts.length > 0 && (
           <div className="mt-12">
             <h2 className="text-lg font-semibold text-[#1a365d] mb-4">
-              D'autres produits qui pourraient vous intéresser :
+              D&apos;autres produits qui pourraient vous intéresser :
             </h2>
             <div className="flex gap-4 overflow-x-auto pb-4">
               {relatedProducts.map((relatedProduct) => {
@@ -528,7 +482,7 @@ export default function ProductDetailClient({
                           className="object-contain"
                         />
                       ) : (
-                        <span className="text-gray-300 text-[10px]">Pas d'image</span>
+                        <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -537,7 +491,7 @@ export default function ProductDetailClient({
                       </h3>
                       <p className="text-[10px] text-gray-500">à partir de</p>
                       <p className="text-xs font-bold text-marlon-green">
-                        {relatedPrice.toFixed(2)}€ TTC <span className="font-normal text-gray-500">/mois</span>
+                        {relatedPrice.toFixed(2)}€ HT <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>
                   </Link>

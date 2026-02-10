@@ -12,6 +12,7 @@ interface Category {
   name: string;
   description?: string;
   image_url?: string;
+  product_type?: string;
 }
 
 interface Specialty {
@@ -24,6 +25,18 @@ interface ItType {
   name: string;
 }
 
+interface ItProduct {
+  id: string;
+  name: string;
+  reference?: string;
+  description?: string;
+  purchase_price_ht: number;
+  marlon_margin_percent: number;
+  brand_id?: string;
+  brands?: { id: string; name: string };
+  product_images?: { image_url: string; order_index: number }[];
+}
+
 interface CatalogClientProps {
   initialCategories: Category[];
   categoryProductTypes: Record<string, string[]>;
@@ -31,6 +44,13 @@ interface CatalogClientProps {
   categoryItTypes: Record<string, string[]>;
   specialties: Specialty[];
   itTypes: ItType[];
+  itTypeProducts: Record<string, ItProduct[]>;
+  allItProducts: ItProduct[];
+  allMedicalProducts: ItProduct[];
+  coefficient: number;
+  productCheapestPrices: Record<string, number>;
+  productCheapestImages: Record<string, string | null>;
+  productCheapestId: Record<string, string>;
 }
 
 export default function CatalogClient({ 
@@ -39,7 +59,14 @@ export default function CatalogClient({
   categorySpecialties,
   categoryItTypes,
   specialties,
-  itTypes
+  itTypes,
+  itTypeProducts,
+  allItProducts,
+  allMedicalProducts,
+  coefficient,
+  productCheapestPrices,
+  productCheapestImages,
+  productCheapestId
 }: CatalogClientProps) {
   const searchParams = useSearchParams();
   const urlType = searchParams.get('type');
@@ -55,6 +82,7 @@ export default function CatalogClient({
   const [isItTypeDropdownOpen, setIsItTypeDropdownOpen] = useState(false);
   const specialtyDropdownRef = useRef<HTMLDivElement>(null);
   const itTypeDropdownRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Initialize from URL params
   useEffect(() => {
@@ -95,27 +123,29 @@ export default function CatalogClient({
     t.name.toLowerCase().includes(itTypeSearch.toLowerCase())
   );
 
-  // Filter categories based on active filters
+  // Filter categories based on active filters (no search filter on categories)
   const filteredCategories = initialCategories.filter((category) => {
     // If medical equipment is selected and a specialty is selected
     if (activeProductType === 'medical_equipment' && selectedSpecialty) {
+      if (category.product_type !== 'medical_equipment') return false;
       const catSpecialties = categorySpecialties[category.id] || [];
       return catSpecialties.includes(selectedSpecialty);
     }
 
     // If IT equipment is selected and an IT type is selected
     if (activeProductType === 'it_equipment' && selectedItType) {
+      if (category.product_type !== 'it_equipment') return false;
       const catItTypes = categoryItTypes[category.id] || [];
       return catItTypes.includes(selectedItType);
     }
     
-    // If a product type is selected
+    // If a product type is selected, filter by category's own product_type
     if (activeProductType) {
-      const productTypes = categoryProductTypes[category.id] || [];
-      return productTypes.includes(activeProductType);
+      return category.product_type === activeProductType;
     }
     
-    return true;
+    // By default (no filter), show only medical equipment categories
+    return category.product_type === 'medical_equipment';
   });
 
   const handleSpecialtySelect = (specialtyId: string | null) => {
@@ -129,7 +159,7 @@ export default function CatalogClient({
   const handleItTypeSelect = (itTypeId: string | null) => {
     setSelectedItType(itTypeId);
     setSelectedSpecialty(null);
-    setActiveProductType(itTypeId ? 'it_equipment' : null);
+    setActiveProductType('it_equipment');
     setIsItTypeDropdownOpen(false);
     setItTypeSearch('');
   };
@@ -147,6 +177,43 @@ export default function CatalogClient({
     }
     return 'Informatique';
   };
+
+  // IT products helpers
+  const calculateMonthlyPrice = (product: ItProduct) => {
+    const priceHT = product.purchase_price_ht * (1 + product.marlon_margin_percent / 100);
+    const monthly = priceHT * coefficient;
+    return monthly;
+  };
+
+  const getProductImage = (product: ItProduct) => {
+    if (product.product_images && product.product_images.length > 0) {
+      const sorted = [...product.product_images].sort((a, b) => a.order_index - b.order_index);
+      return sorted[0].image_url;
+    }
+    return null;
+  };
+
+  // Get the IT products to display based on selected IT type
+  const displayItProducts = selectedItType 
+    ? (itTypeProducts[selectedItType] || [])
+    : (activeProductType === 'it_equipment' ? allItProducts : []);
+
+  // Should we show IT products directly?
+  const showItProducts = activeProductType === 'it_equipment';
+
+  // If there's a search query, combine all products (medical + IT) and filter them
+  let searchResults: ItProduct[] = [];
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    // Combine all products
+    const allProducts = [...allMedicalProducts, ...allItProducts];
+    // Filter by search query
+    searchResults = allProducts.filter(product => 
+      product.name.toLowerCase().includes(query) ||
+      product.reference?.toLowerCase().includes(query) ||
+      product.description?.toLowerCase().includes(query)
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -279,8 +346,131 @@ export default function CatalogClient({
           </div>
       </div>
 
-      {/* Categories grid */}
-      {filteredCategories.length > 0 ? (
+      {/* Search bar */}
+      <div className="mb-6">
+        <div className="relative w-full">
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher un produit..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <Icon icon="mdi:close" className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Content: Search results, IT Products grid or Categories grid */}
+      {searchQuery.trim() ? (
+        // Show search results (all products)
+        searchResults.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {searchResults.map((product) => {
+              const cheapestImage = productCheapestImages[product.id];
+              const imageUrl = cheapestImage || getProductImage(product);
+              const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              const targetProductId = productCheapestId[product.id] || product.id;
+
+              return (
+                <Link
+                  key={product.id}
+                  href={`/catalog/product/${targetProductId}`}
+                  className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
+                    {imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={product.name}
+                        fill
+                        className="object-contain p-2"
+                      />
+                    ) : (
+                      <span className="text-gray-300 text-xs">Pas d&apos;image</span>
+                    )}
+                  </div>
+                  <div className="p-3 flex-1 flex flex-col">
+                    <h3 className="text-xs font-medium text-[#1a365d] text-center leading-tight line-clamp-3 mb-2">
+                      {product.name}
+                    </h3>
+                    <div className="mt-auto text-center">
+                      <p className="text-[10px] text-gray-500">à partir de</p>
+                      <p className="text-xs font-bold text-gray-900">
+                        {monthlyPrice.toFixed(2)} € HT <span className="font-normal text-gray-500">/mois</span>
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Icon icon="mdi:package-variant" className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600">Aucun produit trouvé pour &quot;{searchQuery}&quot;.</p>
+          </div>
+        )
+      ) : showItProducts ? (
+        // Show IT products directly
+        displayItProducts.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {displayItProducts.map((product) => {
+              // Utiliser l'image de la variante la moins chère, sinon celle du produit principal
+              const cheapestImage = productCheapestImages[product.id];
+              const imageUrl = cheapestImage || getProductImage(product);
+              // Utiliser le prix le moins cher pré-calculé côté serveur, sinon fallback sur le prix du produit principal
+              const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              // Lien vers la variante la moins chère (ou le produit principal si c'est le moins cher)
+              const targetProductId = productCheapestId[product.id] || product.id;
+
+              return (
+                <Link
+                  key={product.id}
+                  href={`/catalog/product/${targetProductId}`}
+                  className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
+                    {imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={product.name}
+                        fill
+                        className="object-contain p-2"
+                      />
+                    ) : (
+                      <span className="text-gray-300 text-xs">Pas d&apos;image</span>
+                    )}
+                  </div>
+                  <div className="p-3 flex-1 flex flex-col">
+                    <h3 className="text-xs font-medium text-[#1a365d] text-center leading-tight line-clamp-3 mb-2">
+                      {product.name}
+                    </h3>
+                    <div className="mt-auto text-center">
+                      <p className="text-[10px] text-gray-500">à partir de</p>
+                      <p className="text-xs font-bold text-gray-900">
+                        {monthlyPrice.toFixed(2)} € HT <span className="font-normal text-gray-500">/mois</span>
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Icon icon="mdi:package-variant" className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600">Aucun produit informatique disponible.</p>
+          </div>
+        )
+      ) : filteredCategories.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
           {filteredCategories.map((category) => (
             <Link
@@ -297,7 +487,7 @@ export default function CatalogClient({
                     className="object-contain p-2"
                   />
                 ) : (
-                  <span className="text-gray-300 text-xs">Pas d'image</span>
+                  <span className="text-gray-300 text-xs">Pas d&apos;image</span>
                 )}
               </div>
               <div className="py-2 px-1">

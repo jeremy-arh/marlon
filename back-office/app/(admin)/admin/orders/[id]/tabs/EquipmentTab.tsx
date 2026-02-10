@@ -13,13 +13,10 @@ interface EquipmentTabProps {
 }
 
 export default function EquipmentTab({ orderId, orderItems, onUpdate }: EquipmentTabProps) {
-  const [equipments, setEquipments] = useState<any[]>(orderItems);
   const [showTTC, setShowTTC] = useState(false); // Toggle pour HT/TTC
 
-  // Update equipments when orderItems prop changes
-  useEffect(() => {
-    setEquipments(orderItems);
-  }, [orderItems]);
+  // Display each order_item as a separate row (no grouping)
+  const equipments = orderItems;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,10 +47,14 @@ export default function EquipmentTab({ orderId, orderItems, onUpdate }: Equipmen
   };
 
   const handleEdit = (item: any) => {
-    setEditingItem(item);
+    // Find all order_items for this product to calculate total quantity
+    const itemsForProduct = orderItems.filter((i: any) => i.product_id === item.product_id);
+    const totalQuantity = itemsForProduct.reduce((sum: number, i: any) => sum + i.quantity, 0);
+    
+    setEditingItem(item); // Store the first item for API call
     setFormData({
       product_id: item.product_id,
-      quantity: item.quantity.toString(),
+      quantity: totalQuantity.toString(), // Total quantity for this product
     });
     setIsModalOpen(true);
   };

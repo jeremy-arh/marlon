@@ -107,11 +107,10 @@ export async function updateSession(request: NextRequest) {
   const employeePaths = ['/equipments', '/support'];
   const isEmployeePath = employeePaths.some((path) => pathname.startsWith(path));
 
-  // Rediriger les utilisateurs non connectés vers login s'ils tentent d'accéder à une route protégée
+  // Rediriger les utilisateurs non connectés vers le catalogue s'ils tentent d'accéder à une route protégée
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('redirect', pathname);
+    url.pathname = '/catalog';
     return NextResponse.redirect(url);
   }
 
@@ -153,11 +152,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Si l'utilisateur n'est pas connecté et tente d'accéder à une route non publique, rediriger vers login
+  // Si l'utilisateur n'est pas connecté et tente d'accéder à une route non publique, rediriger vers le catalogue
   if (!isPublicPath && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('redirect', pathname);
+    url.pathname = '/catalog';
     return NextResponse.redirect(url);
   }
 

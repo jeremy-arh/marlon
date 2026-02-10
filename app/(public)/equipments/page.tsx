@@ -52,6 +52,7 @@ export default async function EquipmentsPage() {
         product_id,
         quantity,
         assigned_to_user_id,
+        status,
         product:products(
           id,
           name,
@@ -78,14 +79,16 @@ export default async function EquipmentsPage() {
         return;
       }
 
-      // Map order status to equipment status
-      let equipmentStatus = 'pending';
-      if (order.status === 'delivered') {
-        equipmentStatus = 'delivered';
-      } else if (order.status === 'shipped') {
-        equipmentStatus = 'shipped';
-      } else if (['draft', 'pending', 'sent_to_leaser', 'leaser_accepted', 'contract_uploaded', 'processing'].includes(order.status)) {
-        equipmentStatus = 'pending';
+      // Use item-level status if set (e.g. maintenance), otherwise derive from order status
+      let equipmentStatus = item.status || 'pending';
+      if (!item.status || item.status === 'pending') {
+        if (order.status === 'delivered') {
+          equipmentStatus = 'delivered';
+        } else if (order.status === 'shipped') {
+          equipmentStatus = 'shipped';
+        } else if (['draft', 'pending', 'sent_to_leaser', 'leaser_accepted', 'contract_uploaded', 'processing'].includes(order.status)) {
+          equipmentStatus = 'pending';
+        }
       }
 
       // Find assigned employee

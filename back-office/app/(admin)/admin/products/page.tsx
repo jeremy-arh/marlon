@@ -25,7 +25,7 @@ export default async function ProductsPage() {
     redirect('/login');
   }
 
-  // Load products server-side
+  // Load products server-side — only parent products and standalone products (not variants)
   const { data: productsData, error } = await serviceClient
     .from('products')
     .select(`
@@ -35,6 +35,7 @@ export default async function ProductsPage() {
       default_leaser:leasers(name),
       product_images(image_url, order_index)
     `)
+    .is('parent_product_id', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -68,40 +69,16 @@ export default async function ProductsPage() {
       // Table might not exist yet
     }
 
-    // Load variants for IT equipment products
-    const itProductIds = productsData.filter((p: any) => p.product_type === 'it_equipment').map((p: any) => p.id);
-    let variantsData: any[] = [];
-    if (itProductIds.length > 0) {
-      const { data: variants } = await serviceClient
-        .from('product_variants')
-        .select('*')
-        .in('product_id', itProductIds)
-        .eq('is_active', true);
-      variantsData = variants || [];
-    }
-
-    // Load variant filters and options for display
-    let variantFiltersData: any[] = [];
-    let variantFilterOptionsData: any[] = [];
-    try {
-      const { data: filters } = await serviceClient
-        .from('product_variant_filters')
-        .select('*')
-        .order('order_index', { ascending: true });
-      variantFiltersData = filters || [];
-
-      if (variantFiltersData.length > 0) {
-        const filterIds = variantFiltersData.map((f: any) => f.id);
-        const { data: options } = await serviceClient
-          .from('product_variant_filter_options')
-          .select('*')
-          .in('filter_id', filterIds)
-          .order('order_index', { ascending: true });
-        variantFilterOptionsData = options || [];
-      }
-    } catch (e) {
-      // Tables might not exist yet
-    }
+    // Count child products (variants) per parent
+    const { data: childCountsData } = await serviceClient
+      .from('products')
+      .select('parent_product_id')
+      .in('parent_product_id', productIds);
+    
+    const childCounts: Record<string, number> = {};
+    (childCountsData || []).forEach((c: any) => {
+      childCounts[c.parent_product_id] = (childCounts[c.parent_product_id] || 0) + 1;
+    });
 
     // Calculate prices for each product and duration
     enrichedProducts = await Promise.all(
@@ -126,60 +103,12 @@ export default async function ProductsPage() {
           }
         }
 
-        // Calculate prices for variants if IT equipment
-        const variants = variantsData.filter((v: any) => v.product_id === product.id);
-        const variantsWithPrices: any[] = [];
-
-        if (product.product_type === 'it_equipment' && variants.length > 0 && product.default_leaser_id && durations) {
-          for (const variant of variants) {
-            const variantPricesByDuration: Record<number, { monthly: number; total: number }> = {};
-            
-            for (const duration of durations) {
-              if (variant.purchase_price_ht && variant.marlon_margin_percent) {
-                const variantPriceCalc = await calculateProductPriceServer(
-                  parseFloat(variant.purchase_price_ht.toString()),
-                  parseFloat(variant.marlon_margin_percent.toString()),
-                  product.default_leaser_id,
-                  duration.months
-                );
-                
-                if (variantPriceCalc) {
-                  variantPricesByDuration[duration.months] = {
-                    monthly: variantPriceCalc.monthlyPrice,
-                    total: variantPriceCalc.totalPrice,
-                  };
-                }
-              }
-            }
-
-            // Build variant display name from variant_data
-            const variantData = variant.variant_data || {};
-            const variantLabels: string[] = [];
-            
-            for (const filter of variantFiltersData) {
-              const value = variantData[filter.name];
-              if (value) {
-                const option = variantFilterOptionsData.find((opt: any) => opt.filter_id === filter.id && opt.value === value);
-                if (option) {
-                  variantLabels.push(`${filter.label}: ${option.label}`);
-                }
-              }
-            }
-
-            variantsWithPrices.push({
-              ...variant,
-              displayName: variantLabels.length > 0 ? variantLabels.join(', ') : 'Variante',
-              pricesByDuration: variantPricesByDuration,
-            });
-          }
-        }
-
         return {
           ...product,
           product_categories: categoriesData?.filter((pc: any) => pc.product_id === product.id) || [],
           product_specialties: specialtiesData?.filter((ps: any) => ps.product_id === product.id) || [],
           pricesByDuration,
-          variants: variantsWithPrices,
+          variantCount: childCounts[product.id] || 0,
         };
       })
     );
