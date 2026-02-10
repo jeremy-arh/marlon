@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import ClientSidebar from '@/components/ClientSidebar';
 import RoutePrefetcher from '@/components/RoutePrefetcher';
 
@@ -18,6 +19,28 @@ export default function PublicLayout({
     '/cart',
     '/settings',
   ];
+
+  // Intercepter les AbortError non gérées globalement
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const error = event.reason;
+      // Ignorer complètement les AbortError - elles sont attendues lors de la navigation
+      if (
+        error?.name === 'AbortError' ||
+        error?.message?.includes('aborted') ||
+        error?.message?.includes('signal is aborted')
+      ) {
+        event.preventDefault(); // Empêcher l'affichage dans la console
+        return;
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">

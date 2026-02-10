@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { startTransition, useEffect, useRef } from 'react';
 import { ReactNode } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 interface InstantLinkProps {
   href: string;
@@ -45,7 +46,7 @@ export default function InstantLink({
     };
   }, [href, router, prefetch]);
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Si c'est un clic avec Ctrl/Cmd ou sur un lien externe, laisser le comportement par défaut
     if (e.ctrlKey || e.metaKey || e.shiftKey) {
       return;
@@ -54,6 +55,22 @@ export default function InstantLink({
     // Si c'est un lien externe ou un hash, laisser le comportement par défaut
     if (href.startsWith('http') || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) {
       return;
+    }
+
+    // Si l'utilisateur est déjà connecté et essaie d'aller sur /login, rediriger vers /catalog
+    if (href === '/login' || href.startsWith('/login')) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          e.preventDefault();
+          startTransition(() => {
+            router.push('/catalog');
+          });
+          return;
+        }
+      } catch (error) {
+        // Ignore errors, continue with normal navigation
+      }
     }
 
     e.preventDefault();

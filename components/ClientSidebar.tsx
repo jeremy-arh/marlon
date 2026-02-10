@@ -54,6 +54,11 @@ export default function ClientSidebar() {
         // Check if component is still mounted before updating state
         if (!isMountedRef.current) return;
         
+        // Ignore AbortError from getUser
+        if (userError && (userError.name === 'AbortError' || userError.message?.includes('aborted') || userError.message?.includes('signal is aborted'))) {
+          return;
+        }
+        
         if (userError || !currentUser) {
           if (!isMountedRef.current) return;
           setUser(null);
@@ -96,8 +101,10 @@ export default function ClientSidebar() {
                 }
               })
               .catch((error) => {
-                // Ignore AbortError - it's expected when component unmounts
-                if (error?.name === 'AbortError') return;
+                // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
+                if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
+                  return;
+                }
                 // Silently fail for other errors - keep cached value
               });
             return;
@@ -117,8 +124,10 @@ export default function ClientSidebar() {
         if (!isMountedRef.current) return;
 
         if (roleError) {
-          // Ignore AbortError - it's expected when component unmounts
-          if (roleError.name === 'AbortError') return;
+          // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
+          if (roleError.name === 'AbortError' || roleError.message?.includes('aborted') || roleError.message?.includes('signal is aborted')) {
+            return;
+          }
           console.error('Error loading user role:', roleError);
           setUserRole(null);
           if (typeof window !== 'undefined') {
@@ -135,12 +144,13 @@ export default function ClientSidebar() {
           }
         }
       } catch (error: any) {
-        // Ignore AbortError - it's expected when component unmounts or navigation occurs
-        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+        // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
           return;
         }
-        console.error('Error in loadUserAndRole:', error);
+        // Only log non-AbortError errors
         if (!isMountedRef.current) return;
+        console.error('Error in loadUserAndRole:', error);
         setUser(null);
         setUserRole(null);
       } finally {
@@ -179,8 +189,10 @@ export default function ClientSidebar() {
             if (!isMountedRef.current) return;
 
             if (roleError) {
-              // Ignore AbortError - it's expected when component unmounts
-              if (roleError.name === 'AbortError') return;
+              // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
+              if (roleError.name === 'AbortError' || roleError.message?.includes('aborted') || roleError.message?.includes('signal is aborted')) {
+                return;
+              }
               console.error('Error loading user role on auth change:', roleError);
               setUserRole(null);
             } else {
@@ -193,12 +205,13 @@ export default function ClientSidebar() {
               }
             }
           } catch (error: any) {
-            // Ignore AbortError - it's expected when component unmounts or navigation occurs
-            if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+            // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
+            if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
               return;
             }
-            console.error('Error in auth state change handler:', error);
+            // Only log non-AbortError errors
             if (isMountedRef.current) {
+              console.error('Error in auth state change handler:', error);
               setUserRole(null);
             }
           } finally {
