@@ -17,6 +17,7 @@ export default function NavLink({ href, icon, children }: NavLinkProps) {
   return (
     <Link
       href={href}
+      prefetch={true}
       className={`flex items-center gap-2 transition-colors ${
         isActive
           ? 'text-black font-semibold'

@@ -49,7 +49,7 @@ export default function Header() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href="/" prefetch={true} className="flex items-center">
             <img
               src={LOGO_URL}
               alt="MARLON"
@@ -61,6 +61,7 @@ export default function Header() {
           <nav className="hidden md:flex items-center gap-6">
             <Link
               href="/catalog"
+              prefetch={true}
               className={`text-sm font-medium transition-colors ${
                 pathname === '/catalog' || pathname.startsWith('/catalog')
                   ? 'text-marlon-green'
@@ -72,6 +73,7 @@ export default function Header() {
             {user && (
               <Link
                 href="/orders"
+                prefetch={true}
                 className={`text-sm font-medium transition-colors ${
                   pathname === '/orders' || pathname.startsWith('/orders')
                     ? 'text-marlon-green'

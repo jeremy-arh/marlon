@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import Icon from './Icon';
 import { LOGO_URL } from '@/lib/constants';
+import InstantLink from './InstantLink';
 
 export default function ClientSidebar() {
   const pathname = usePathname();
@@ -27,13 +27,35 @@ export default function ClientSidebar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [loadingRole, setLoadingRole] = useState(false);
+  const isMountedRef = useRef(true);
+
+  // Précharger toutes les routes de navigation au montage
+  useEffect(() => {
+    const routesToPrefetch = [
+      '/catalog',
+      '/orders',
+      '/equipments',
+      '/employees',
+      '/support',
+    ];
+    
+    routesToPrefetch.forEach(route => {
+      router.prefetch(route);
+    });
+  }, [router]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     const loadUserAndRole = async () => {
       try {
         const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
         
+        // Check if component is still mounted before updating state
+        if (!isMountedRef.current) return;
+        
         if (userError || !currentUser) {
+          if (!isMountedRef.current) return;
           setUser(null);
           setUserRole(null);
           setLoadingRole(false);
@@ -45,6 +67,7 @@ export default function ClientSidebar() {
           return;
         }
 
+        if (!isMountedRef.current) return;
         setUser(currentUser);
 
         // Check cache first
@@ -54,6 +77,7 @@ export default function ClientSidebar() {
           
           // If cache exists and user ID matches, use cached role immediately
           if (cachedUserId === currentUser.id && cachedRole !== null) {
+            if (!isMountedRef.current) return;
             setUserRole(cachedRole);
             setLoadingRole(false);
             // Still verify in background (but don't block UI)
@@ -64,20 +88,24 @@ export default function ClientSidebar() {
               .eq('status', 'active')
               .maybeSingle()
               .then(({ data: roleData }) => {
+                if (!isMountedRef.current) return;
                 const role = roleData?.role || null;
                 if (role !== cachedRole) {
                   setUserRole(role);
                   sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
                 }
               })
-              .catch(() => {
-                // Silently fail - keep cached value
+              .catch((error) => {
+                // Ignore AbortError - it's expected when component unmounts
+                if (error?.name === 'AbortError') return;
+                // Silently fail for other errors - keep cached value
               });
             return;
           }
         }
 
         // Load role from database
+        if (!isMountedRef.current) return;
         setLoadingRole(true);
         const { data: roleData, error: roleError } = await supabase
           .from('user_roles')
@@ -86,7 +114,11 @@ export default function ClientSidebar() {
           .eq('status', 'active')
           .maybeSingle();
 
+        if (!isMountedRef.current) return;
+
         if (roleError) {
+          // Ignore AbortError - it's expected when component unmounts
+          if (roleError.name === 'AbortError') return;
           console.error('Error loading user role:', roleError);
           setUserRole(null);
           if (typeof window !== 'undefined') {
@@ -102,18 +134,27 @@ export default function ClientSidebar() {
             sessionStorage.setItem(ROLE_CACHE_USER_KEY, currentUser.id);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Ignore AbortError - it's expected when component unmounts or navigation occurs
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+          return;
+        }
         console.error('Error in loadUserAndRole:', error);
+        if (!isMountedRef.current) return;
         setUser(null);
         setUserRole(null);
       } finally {
-        setLoadingRole(false);
+        if (isMountedRef.current) {
+          setLoadingRole(false);
+        }
       }
     };
 
     loadUserAndRole();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMountedRef.current) return;
+      
       setUser(session?.user ?? null);
       if (session?.user) {
         // Only reload role if user changed (different user ID)
@@ -125,6 +166,7 @@ export default function ClientSidebar() {
             sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
           }
           
+          if (!isMountedRef.current) return;
           setLoadingRole(true);
           try {
             const { data: roleData, error: roleError } = await supabase
@@ -134,7 +176,11 @@ export default function ClientSidebar() {
               .eq('status', 'active')
               .maybeSingle();
 
+            if (!isMountedRef.current) return;
+
             if (roleError) {
+              // Ignore AbortError - it's expected when component unmounts
+              if (roleError.name === 'AbortError') return;
               console.error('Error loading user role on auth change:', roleError);
               setUserRole(null);
             } else {
@@ -146,17 +192,27 @@ export default function ClientSidebar() {
                 sessionStorage.setItem(ROLE_CACHE_USER_KEY, session.user.id);
               }
             }
-          } catch (error) {
+          } catch (error: any) {
+            // Ignore AbortError - it's expected when component unmounts or navigation occurs
+            if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+              return;
+            }
             console.error('Error in auth state change handler:', error);
-            setUserRole(null);
+            if (isMountedRef.current) {
+              setUserRole(null);
+            }
           } finally {
-            setLoadingRole(false);
+            if (isMountedRef.current) {
+              setLoadingRole(false);
+            }
           }
         }
         // If same user, keep the existing role from cache or state
       } else {
-        setUserRole(null);
-        setLoadingRole(false);
+        if (isMountedRef.current) {
+          setUserRole(null);
+          setLoadingRole(false);
+        }
         // Clear cache on logout
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem(ROLE_CACHE_KEY);
@@ -166,6 +222,7 @@ export default function ClientSidebar() {
     });
 
     return () => {
+      isMountedRef.current = false;
       subscription.unsubscribe();
     };
   }, [user?.id]);
@@ -248,9 +305,10 @@ export default function ClientSidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
-            <Link
+            <InstantLink
               key={item.href}
               href={item.href}
+              prefetch={true}
               className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-marlon-green/10 text-marlon-green'
@@ -264,7 +322,7 @@ export default function ClientSidebar() {
                 }`} 
               />
               {item.label}
-            </Link>
+            </InstantLink>
           );
         })}
       </nav>
@@ -323,20 +381,20 @@ export default function ClientSidebar() {
           </div>
         ) : (
           <div className="space-y-2">
-            <Link
+            <InstantLink
               href="/login"
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-marlon-green text-white text-sm font-medium rounded-lg hover:bg-marlon-green/90 transition-colors"
             >
               <Icon icon="mdi:login" className="h-5 w-5" />
               Se connecter
-            </Link>
-            <Link
+            </InstantLink>
+            <InstantLink
               href="/register"
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Icon icon="mdi:account-plus" className="h-5 w-5" />
               S'inscrire
-            </Link>
+            </InstantLink>
           </div>
         )}
       </div>
