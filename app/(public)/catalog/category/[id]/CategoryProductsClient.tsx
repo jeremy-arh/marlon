@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import PageHeader from '@/components/PageHeader';
@@ -71,6 +71,20 @@ export default function CategoryProductsClient({
   const [minPrice, setMinPrice] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  // Count active filters for badge
+  const activeFilterCount = [selectedBrands.length > 0, minPrice, maxPrice].filter(Boolean).length;
+
+  // Lock body scroll when filter sheet is open
+  useEffect(() => {
+    if (isFilterSheetOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isFilterSheetOpen]);
 
   // Use server-calculated monthly price (with correct coefficient per price range)
   // Falls back to simple calculation if pre-calculated price is not available
@@ -153,8 +167,8 @@ export default function CategoryProductsClient({
         <span className="text-gray-700 font-medium">{category.name}</span>
       </div>
 
-      {/* Filters bar */}
-      <div className="flex items-center gap-4 mb-8 flex-wrap">
+      {/* Desktop Filters bar */}
+      <div className="hidden lg:flex items-center gap-4 mb-8 flex-wrap">
         {/* Brand filter */}
         <div className="relative">
           <button
@@ -205,6 +219,118 @@ export default function CategoryProductsClient({
           />
         </div>
       </div>
+
+      {/* Mobile filter button */}
+      <div className="lg:hidden mb-4 flex justify-end">
+        <button
+          onClick={() => setIsFilterSheetOpen(true)}
+          className="relative flex items-center justify-center w-11 h-11 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          aria-label="Filtres"
+        >
+          <Icon icon="mdi:tune-variant" className="h-5 w-5" />
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-marlon-green text-[9px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Filter Bottom Sheet */}
+      {isFilterSheetOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-fade-in"
+            onClick={() => { setIsFilterSheetOpen(false); setIsBrandDropdownOpen(false); }}
+          />
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[80vh] flex flex-col">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">Filtres</h3>
+              <button
+                onClick={() => { setIsFilterSheetOpen(false); setIsBrandDropdownOpen(false); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Icon icon="mdi:close" className="h-5 w-5" />
+              </button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {/* Brand filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Marque</label>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {availableBrands.map((brand) => (
+                    <label
+                      key={brand.id}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer rounded-lg"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBrands.includes(brand.id)}
+                        onChange={() => toggleBrand(brand.id)}
+                        className="rounded border-gray-300 accent-marlon-green text-marlon-green focus:ring-marlon-green"
+                      />
+                      <span className="text-sm text-gray-700">{brand.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Prix mensuel (€ HT)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    placeholder="Min"
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <span className="text-gray-400">-</span>
+                  <input
+                    type="number"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    placeholder="Max"
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="border-t border-gray-200 px-5 py-3 space-y-2">
+              <button
+                onClick={() => { setIsFilterSheetOpen(false); setIsBrandDropdownOpen(false); }}
+                className="w-full py-2.5 text-sm font-medium text-white bg-marlon-green rounded-lg hover:bg-marlon-green/90 transition-colors"
+              >
+                Voir les résultats
+              </button>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => {
+                    setSelectedBrands([]);
+                    setMinPrice('');
+                    setMaxPrice('');
+                    setIsFilterSheetOpen(false);
+                    setIsBrandDropdownOpen(false);
+                  }}
+                  className="w-full py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Réinitialiser les filtres
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="p-6">

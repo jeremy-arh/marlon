@@ -215,140 +215,162 @@ export default function CatalogClient({
     );
   }
 
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  // Count active filters for badge
+  const activeFilterCount = [activeProductType, selectedSpecialty, selectedItType].filter(Boolean).length;
+
+  // Lock body scroll when filter sheet is open
+  useEffect(() => {
+    if (isFilterSheetOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isFilterSheetOpen]);
+
+  // Shared filter content renderer
+  const renderFilters = (isMobile: boolean) => (
+    <>
+      {/* Matériel médical - Searchable dropdown */}
+      <div className={`relative ${isMobile ? 'w-full' : ''}`} ref={isMobile ? undefined : specialtyDropdownRef}>
+        <button
+          onClick={() => {
+            if (isMobile) {
+              setIsSpecialtyDropdownOpen(!isSpecialtyDropdownOpen);
+              setIsItTypeDropdownOpen(false);
+            } else {
+              setIsSpecialtyDropdownOpen(!isSpecialtyDropdownOpen);
+              setIsItTypeDropdownOpen(false);
+            }
+          }}
+          className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : 'min-w-[180px]'} ${
+            activeProductType === 'medical_equipment'
+              ? 'bg-marlon-green text-white'
+              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <span>{getSpecialtyLabel()}</span>
+          <Icon icon="mdi:chevron-down" className="h-4 w-4" />
+        </button>
+        
+        {isSpecialtyDropdownOpen && (
+          <div className={`${isMobile ? 'mt-1 w-full' : 'absolute top-full left-0 mt-1 w-64'} bg-white border border-gray-200 rounded-lg shadow-lg z-50`}>
+            <div className="p-2 border-b border-gray-200">
+              <input
+                type="text"
+                value={specialtySearch}
+                onChange={(e) => setSpecialtySearch(e.target.value)}
+                placeholder="Rechercher une spécialité..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              <button
+                onClick={() => { handleSpecialtySelect(null); if (isMobile) setIsFilterSheetOpen(false); }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-gray-600"
+              >
+                Toutes les spécialités
+              </button>
+              {filteredSpecialties.map((specialty) => (
+                <button
+                  key={specialty.id}
+                  onClick={() => { handleSpecialtySelect(specialty.id); if (isMobile) setIsFilterSheetOpen(false); }}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
+                    selectedSpecialty === specialty.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
+                  }`}
+                >
+                  {specialty.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobilier */}
+      <button
+        onClick={() => {
+          setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
+          setSelectedSpecialty(null);
+          setSelectedItType(null);
+          if (isMobile) setIsFilterSheetOpen(false);
+        }}
+        className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : ''} ${
+          activeProductType === 'furniture'
+            ? 'bg-marlon-green text-white'
+            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+        }`}
+      >
+        Mobilier
+      </button>
+
+      {/* Informatique - Searchable dropdown */}
+      <div className={`relative ${isMobile ? 'w-full' : ''}`} ref={isMobile ? undefined : itTypeDropdownRef}>
+        <button
+          onClick={() => {
+            setIsItTypeDropdownOpen(!isItTypeDropdownOpen);
+            setIsSpecialtyDropdownOpen(false);
+          }}
+          className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : 'min-w-[160px]'} ${
+            activeProductType === 'it_equipment'
+              ? 'bg-marlon-green text-white'
+              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <span>{getItTypeLabel()}</span>
+          <Icon icon="mdi:chevron-down" className="h-4 w-4" />
+        </button>
+        
+        {isItTypeDropdownOpen && (
+          <div className={`${isMobile ? 'mt-1 w-full' : 'absolute top-full left-0 mt-1 w-64'} bg-white border border-gray-200 rounded-lg shadow-lg z-50`}>
+            <div className="p-2 border-b border-gray-200">
+              <input
+                type="text"
+                value={itTypeSearch}
+                onChange={(e) => setItTypeSearch(e.target.value)}
+                placeholder="Rechercher un type..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              <button
+                onClick={() => { handleItTypeSelect(null); if (isMobile) setIsFilterSheetOpen(false); }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-gray-600"
+              >
+                Tous les équipements IT
+              </button>
+              {filteredItTypes.map((itType) => (
+                <button
+                  key={itType.id}
+                  onClick={() => { handleItTypeSelect(itType.id); if (isMobile) setIsFilterSheetOpen(false); }}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
+                    selectedItType === itType.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
+                  }`}
+                >
+                  {itType.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="p-4 lg:p-8">
       <PageHeader title="Catalogue" />
       
-      {/* Filters bar */}
-      <div className="mb-8 flex items-center gap-3 flex-wrap">
-          {/* Matériel médical - Searchable dropdown */}
-          <div className="relative" ref={specialtyDropdownRef}>
-            <button
-              onClick={() => {
-                setIsSpecialtyDropdownOpen(!isSpecialtyDropdownOpen);
-                setIsItTypeDropdownOpen(false);
-              }}
-              className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium min-w-[180px] transition-colors ${
-                activeProductType === 'medical_equipment'
-                  ? 'bg-marlon-green text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span>{getSpecialtyLabel()}</span>
-              <Icon icon="mdi:chevron-down" className="h-4 w-4" />
-            </button>
-            
-            {isSpecialtyDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                {/* Search input */}
-                <div className="p-2 border-b border-gray-200">
-                  <input
-                    type="text"
-                    value={specialtySearch}
-                    onChange={(e) => setSpecialtySearch(e.target.value)}
-                    placeholder="Rechercher une spécialité..."
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
-                  />
-                </div>
-                
-                {/* Options list */}
-                <div className="max-h-60 overflow-y-auto">
-                  <button
-                    onClick={() => handleSpecialtySelect(null)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-gray-600"
-                  >
-                    Toutes les spécialités
-                  </button>
-                  {filteredSpecialties.map((specialty) => (
-                    <button
-                      key={specialty.id}
-                      onClick={() => handleSpecialtySelect(specialty.id)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
-                        selectedSpecialty === specialty.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
-                      }`}
-                    >
-                      {specialty.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Mobilier */}
-          <button
-            onClick={() => {
-              setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
-              setSelectedSpecialty(null);
-              setSelectedItType(null);
-            }}
-            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeProductType === 'furniture'
-                ? 'bg-marlon-green text-white'
-                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Mobilier
-          </button>
-
-          {/* Informatique - Searchable dropdown */}
-          <div className="relative" ref={itTypeDropdownRef}>
-            <button
-              onClick={() => {
-                setIsItTypeDropdownOpen(!isItTypeDropdownOpen);
-                setIsSpecialtyDropdownOpen(false);
-              }}
-              className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium min-w-[160px] transition-colors ${
-                activeProductType === 'it_equipment'
-                  ? 'bg-marlon-green text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span>{getItTypeLabel()}</span>
-              <Icon icon="mdi:chevron-down" className="h-4 w-4" />
-            </button>
-            
-            {isItTypeDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                {/* Search input */}
-                <div className="p-2 border-b border-gray-200">
-                  <input
-                    type="text"
-                    value={itTypeSearch}
-                    onChange={(e) => setItTypeSearch(e.target.value)}
-                    placeholder="Rechercher un type..."
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
-                  />
-                </div>
-                
-                {/* Options list */}
-                <div className="max-h-60 overflow-y-auto">
-                  <button
-                    onClick={() => handleItTypeSelect(null)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-gray-600"
-                  >
-                    Tous les équipements IT
-                  </button>
-                  {filteredItTypes.map((itType) => (
-                    <button
-                      key={itType.id}
-                      onClick={() => handleItTypeSelect(itType.id)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
-                        selectedItType === itType.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
-                      }`}
-                    >
-                      {itType.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Desktop Filters bar */}
+      <div className="mb-8 hidden lg:flex items-center gap-3 flex-wrap">
+        {renderFilters(false)}
       </div>
 
-      {/* Search bar */}
-      <div className="mb-6">
-        <div className="relative w-full">
+      {/* Search bar + Mobile filter icon */}
+      <div className="mb-6 flex items-center gap-2">
+        <div className="relative flex-1">
           <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -366,7 +388,71 @@ export default function CatalogClient({
             </button>
           )}
         </div>
+
+        {/* Mobile filter button */}
+        <button
+          onClick={() => setIsFilterSheetOpen(true)}
+          className="lg:hidden relative flex items-center justify-center w-11 h-11 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
+          aria-label="Filtres"
+        >
+          <Icon icon="mdi:tune-variant" className="h-5 w-5" />
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-marlon-green text-[9px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* Mobile Filter Bottom Sheet */}
+      {isFilterSheetOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-fade-in"
+            onClick={() => { setIsFilterSheetOpen(false); setIsSpecialtyDropdownOpen(false); setIsItTypeDropdownOpen(false); }}
+          />
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[80vh] flex flex-col">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">Filtres</h3>
+              <button
+                onClick={() => { setIsFilterSheetOpen(false); setIsSpecialtyDropdownOpen(false); setIsItTypeDropdownOpen(false); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Icon icon="mdi:close" className="h-5 w-5" />
+              </button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {renderFilters(true)}
+            </div>
+            {/* Footer with reset */}
+            {activeFilterCount > 0 && (
+              <div className="border-t border-gray-200 px-5 py-3">
+                <button
+                  onClick={() => {
+                    setActiveProductType(null);
+                    setSelectedSpecialty(null);
+                    setSelectedItType(null);
+                    setIsFilterSheetOpen(false);
+                    setIsSpecialtyDropdownOpen(false);
+                    setIsItTypeDropdownOpen(false);
+                  }}
+                  className="w-full py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Réinitialiser les filtres
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Content: Search results, IT Products grid or Categories grid */}
       {searchQuery.trim() ? (
