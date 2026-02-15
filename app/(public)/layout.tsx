@@ -52,8 +52,8 @@ export default function PublicLayout({
       
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden bg-[#F9FAFB]">
-        {/* Content - pt-16 to account for fixed header height */}
-        <main className="flex-1 overflow-y-auto pt-16">
+        {/* Content - pt-14 mobile / pt-16 desktop to account for fixed header height */}
+        <main className="flex-1 overflow-y-auto pt-14 lg:pt-16">
           {children}
         </main>
       </div>

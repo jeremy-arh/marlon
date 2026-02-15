@@ -108,7 +108,7 @@ export default function EquipmentDetailClient({ equipment, isAdmin }: EquipmentD
   const contractEndDate = calculateContractEndDate();
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title={product?.name || 'Détail équipement'} />
 
       {/* Breadcrumb */}

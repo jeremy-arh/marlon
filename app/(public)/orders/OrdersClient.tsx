@@ -103,7 +103,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
   };
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Mes commandes" />
 
       {/* Filters */}
@@ -161,7 +161,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
       </div>
 
       {/* Content */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6">
         {/* Orders list */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-12">
@@ -186,14 +186,14 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
               return (
                 <div
                   key={order.id}
-                  className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                  className="border border-gray-200 rounded-lg p-4 lg:p-6 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-start gap-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
                     {/* Order details */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
                         <div>
-                          <h3 className="text-lg font-semibold text-[#1a365d]">
+                          <h3 className="text-base lg:text-lg font-semibold text-[#1a365d]">
                             Commande #{order.id.slice(0, 8).toUpperCase()}
                           </h3>
                           <p className="text-sm text-gray-500">
@@ -201,13 +201,13 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                           </p>
                         </div>
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}
+                          className={`inline-flex items-center self-start px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}
                         >
                           {statusInfo.label}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
+                      <div className="flex flex-wrap items-center gap-3 lg:gap-6 text-sm text-gray-600 mb-4">
                         <span className="flex items-center gap-1">
                           <Icon icon="mdi:package-variant" className="h-4 w-4" />
                           {itemCount} article{itemCount > 1 ? 's' : ''}
@@ -222,11 +222,11 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                       </div>
 
                       {/* Products preview */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {order.order_items?.slice(0, 3).map((item, idx) => (
                           <span
                             key={idx}
-                            className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded truncate max-w-[150px]"
+                            className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded truncate max-w-[120px] sm:max-w-[150px]"
                           >
                             {item.product?.name}
                           </span>
@@ -243,7 +243,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                     <div className="flex-shrink-0">
                       <Link
                         href={`/orders/${order.id}`}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-marlon-green border border-marlon-green rounded-lg hover:bg-marlon-green/10 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-marlon-green border border-marlon-green rounded-lg hover:bg-marlon-green/10 transition-colors w-full sm:w-auto justify-center"
                       >
                         Voir le détail
                         <Icon icon="mdi:chevron-right" className="h-4 w-4" />

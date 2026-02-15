@@ -2,7 +2,7 @@ import { CardSkeleton } from '@/components/skeletons/Skeleton';
 
 export default function ProductDetailLoading() {
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <div className="mb-6">
         <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-4" />
       </div>

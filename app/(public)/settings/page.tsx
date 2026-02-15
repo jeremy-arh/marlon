@@ -393,7 +393,7 @@ function SettingsContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 lg:p-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
         </div>
@@ -402,7 +402,7 @@ function SettingsContent() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader
         title="Paramètres"
         breadcrumbs={[
@@ -412,12 +412,12 @@ function SettingsContent() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-0 mb-8 border-b border-gray-200">
+      <div className="flex gap-0 mb-6 lg:mb-8 border-b border-gray-200 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 lg:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-marlon-green text-marlon-green bg-marlon-green/5'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -429,7 +429,7 @@ function SettingsContent() {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6">
         {/* Mon compte */}
         {activeTab === 'account' && (
           <div className="space-y-6">

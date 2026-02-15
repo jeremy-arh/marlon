@@ -249,7 +249,7 @@ export default function SupportPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 lg:p-8">
         <PageHeader title="Support" />
         <div className="flex items-center justify-center min-h-[50vh]">
           <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
@@ -259,7 +259,7 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Support" />
 
       {/* Quick links */}

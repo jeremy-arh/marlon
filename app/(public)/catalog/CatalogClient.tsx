@@ -216,7 +216,7 @@ export default function CatalogClient({
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Catalogue" />
       
       {/* Filters bar */}

@@ -142,7 +142,7 @@ export default function OrderDetailClient({
   const monthlyTTC = monthlyHT * 1.2;
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Détail de la commande" />
 
       {/* Back button */}

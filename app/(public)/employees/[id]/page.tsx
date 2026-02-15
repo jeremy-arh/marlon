@@ -238,7 +238,7 @@ export default function EmployeeDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 lg:p-8">
         <PageHeader title="Fiche employé" />
         <div className="flex items-center justify-center py-12">
           <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
@@ -250,7 +250,7 @@ export default function EmployeeDetailPage() {
 
   if (!employee) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 lg:p-8">
         <PageHeader title="Employé introuvable" />
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Icon icon="mdi:account-off" className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -270,7 +270,7 @@ export default function EmployeeDetailPage() {
   const statusInfo = STATUS_LABELS[employee.status] || STATUS_LABELS.inactive;
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Fiche employé" />
 
       {/* Back button */}

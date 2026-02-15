@@ -252,50 +252,50 @@ export default function ProductDetailClient({
   ];
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Commander" />
 
       {/* Breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-sm">
+      <div className="mb-4 lg:mb-6 flex items-center gap-2 text-sm overflow-x-auto">
         <Link 
           href="/catalog" 
-          className="flex items-center gap-1 text-gray-500 hover:text-marlon-green transition-colors"
+          className="flex items-center gap-1 text-gray-500 hover:text-marlon-green transition-colors flex-shrink-0"
         >
           <Icon icon="mdi:chevron-left" className="h-4 w-4" />
           <span>Retour</span>
         </Link>
-        <span className="text-gray-300">|</span>
+        <span className="text-gray-300 hidden sm:inline">|</span>
         {productType && (
           <>
             <Link 
               href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itTypeId ? `&itType=${itTypeId}` : ''}`}
-              className="text-gray-500 hover:text-marlon-green transition-colors"
+              className="text-gray-500 hover:text-marlon-green transition-colors hidden sm:inline"
             >
               {specialtyName || itTypeName || getProductTypeLabel(productType)}
             </Link>
-            <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400" />
+            <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400 hidden sm:inline" />
           </>
         )}
         {category && (
           <>
             <Link 
               href={`/catalog/category/${category.id}`}
-              className="text-gray-500 hover:text-marlon-green transition-colors"
+              className="text-gray-500 hover:text-marlon-green transition-colors hidden sm:inline"
             >
               {category.name}
             </Link>
-            <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400" />
+            <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400 hidden sm:inline" />
           </>
         )}
-        <span className="text-gray-700 font-medium truncate max-w-[300px]">{product.name}</span>
+        <span className="text-gray-700 font-medium truncate max-w-[200px] sm:max-w-[300px] hidden sm:inline">{product.name}</span>
       </div>
 
       {/* Main content */}
-      <div className="p-6">
+      <div className="p-0 lg:p-6">
         {/* Product name */}
-        <h1 className="text-2xl font-bold text-[#1a365d] mb-6">{product.name}</h1>
+        <h1 className="text-xl lg:text-2xl font-bold text-[#1a365d] mb-4 lg:mb-6">{product.name}</h1>
 
-        <div className="grid grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           {/* Left: Product images */}
           <div>
             {images.length > 0 ? (

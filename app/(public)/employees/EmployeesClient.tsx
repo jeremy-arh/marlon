@@ -167,11 +167,11 @@ export default function EmployeesClient({
   });
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 lg:p-8">
       <PageHeader title="Employés" />
 
       {/* Header with invite button */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 lg:mb-8">
         <div>
           <p className="text-gray-600">
             Gérez les membres de votre équipe et leurs accès.
