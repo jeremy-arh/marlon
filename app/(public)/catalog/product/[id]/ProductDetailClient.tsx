@@ -252,7 +252,7 @@ export default function ProductDetailClient({
   ];
 
   return (
-    <div className="p-4 lg:p-8">
+    <div className="p-4 lg:p-8 pb-28 lg:pb-8">
       <PageHeader title="Commander" />
 
       {/* Breadcrumb */}
@@ -339,8 +339,8 @@ export default function ProductDetailClient({
 
           {/* Right: Product details */}
           <div className="space-y-4">
-            {/* Price and add to cart - Always on top */}
-            <div className="flex items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
+            {/* Price and add to cart - Desktop only (inline) */}
+            <div className="hidden lg:flex items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
               <div>
                 {hasVariants ? (
                   <>
@@ -511,6 +511,46 @@ export default function ProductDetailClient({
             />
           </div>
         )}
+      </div>
+
+      {/* Mobile sticky bottom bar - Price + Add to cart */}
+      <div className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-4 py-3 z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] text-gray-500 leading-none mb-0.5">
+              {hasVariants ? 'Prix' : 'A partir de'}
+            </p>
+            <p className="text-lg font-bold text-gray-900 leading-tight">
+              {displayPrice.toFixed(2)} € <span className="text-sm font-normal text-gray-500">HT /mois</span>
+            </p>
+          </div>
+          <button
+            onClick={handleAddToCart}
+            disabled={addingToCart || addedToCart}
+            className={`flex items-center gap-2 px-5 py-2.5 font-medium rounded-full transition-colors disabled:cursor-not-allowed flex-shrink-0 text-sm ${
+              addedToCart 
+                ? 'bg-green-600 text-white' 
+                : 'bg-marlon-green text-white hover:bg-[#00A870] disabled:opacity-50'
+            }`}
+          >
+            {addingToCart ? (
+              <>
+                <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                <span>Ajout...</span>
+              </>
+            ) : addedToCart ? (
+              <>
+                <Icon icon="mdi:check" className="h-5 w-5" />
+                <span>Ajouté !</span>
+              </>
+            ) : (
+              <>
+                <Icon icon="mdi:cart-plus" className="h-5 w-5" />
+                <span>Ajouter</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
