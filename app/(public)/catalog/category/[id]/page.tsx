@@ -54,15 +54,36 @@ export default async function CategoryPage({
     .select('id, name')
     .order('name');
 
-  // Get default leaser coefficient for price calculation
-  const { data: defaultCoefficient } = await supabase
+  // Load ALL leaser coefficients for price calculations (same as product detail page)
+  const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
-    .select('coefficient')
-    .order('min_amount', { ascending: true })
-    .limit(1)
-    .single();
+    .select('coefficient, min_amount, max_amount')
+    .order('coefficient', { ascending: true });
 
-  const coefficient = defaultCoefficient?.coefficient || 0.035;
+  // Helper: find the best coefficient for a given price HT (divide by 100 since DB stores as percentage)
+  const findCoefficient = (priceHT: number): number => {
+    if (allCoefficients && allCoefficients.length > 0) {
+      const matching = allCoefficients.find(
+        (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
+      );
+      if (matching) return Number(matching.coefficient) / 100;
+      return Number(allCoefficients[0].coefficient) / 100;
+    }
+    return 0.035;
+  };
+
+  // Pre-calculate monthly prices for each product (using correct coefficient per price range)
+  const productMonthlyPrices: Record<string, number> = {};
+  for (const product of (products || [])) {
+    const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
+    const coef = findCoefficient(priceHT);
+    productMonthlyPrices[product.id] = priceHT * coef;
+  }
+
+  // Default coefficient for backward compat (e.g. price filtering)
+  const coefficient = allCoefficients && allCoefficients.length > 0
+    ? Number(allCoefficients[0].coefficient) / 100
+    : 0.035;
 
   // Determine the most common product type in this category
   const productTypes = (products || []).map((p: any) => p.product_type).filter(Boolean);
@@ -116,6 +137,7 @@ export default async function CategoryPage({
       products={products || []}
       brands={brands || []}
       coefficient={Number(coefficient)}
+      productMonthlyPrices={productMonthlyPrices}
       productType={mostCommonType}
       specialtyId={specialtyId}
       specialtyName={specialtyName}

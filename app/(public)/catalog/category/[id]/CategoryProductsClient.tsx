@@ -34,6 +34,7 @@ interface CategoryProductsClientProps {
   products: Product[];
   brands: Brand[];
   coefficient: number;
+  productMonthlyPrices: Record<string, number>;
   productType?: string | null;
   specialtyId?: string | null;
   specialtyName?: string | null;
@@ -59,6 +60,7 @@ export default function CategoryProductsClient({
   products,
   brands,
   coefficient,
+  productMonthlyPrices,
   productType,
   specialtyId,
   specialtyName,
@@ -70,8 +72,13 @@ export default function CategoryProductsClient({
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
 
-  // Calculate monthly price (same formula as back-office: priceHT * coefficient)
+  // Use server-calculated monthly price (with correct coefficient per price range)
+  // Falls back to simple calculation if pre-calculated price is not available
   const calculateMonthlyPrice = (product: Product) => {
+    if (productMonthlyPrices[product.id] !== undefined) {
+      return productMonthlyPrices[product.id];
+    }
+    // Fallback (should not happen since prices are pre-calculated server-side)
     const priceHT = product.purchase_price_ht * (1 + product.marlon_margin_percent / 100);
     const monthly = priceHT * coefficient;
     return monthly;
