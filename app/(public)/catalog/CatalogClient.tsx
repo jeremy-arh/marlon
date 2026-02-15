@@ -557,27 +557,27 @@ export default function CatalogClient({
           </div>
         )
       ) : filteredCategories.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
           {filteredCategories.map((category) => (
             <Link
               key={category.id}
               href={`/catalog/category/${category.id}`}
               className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
             >
-              <div className="relative w-full aspect-square bg-white flex items-center justify-center p-3">
+              <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
                 {category.image_url ? (
                   <Image
                     src={category.image_url}
                     alt={category.name}
                     fill
-                    className="object-contain p-2"
+                    className="object-contain p-1.5"
                   />
                 ) : (
-                  <span className="text-gray-300 text-xs">Pas d&apos;image</span>
+                  <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
                 )}
               </div>
-              <div className="py-2 px-1">
-                <h2 className="text-xs font-medium text-gray-900 text-center leading-tight line-clamp-2">{category.name}</h2>
+              <div className="py-1.5 px-1">
+                <h2 className="text-[10px] lg:text-[11px] font-medium text-gray-900 text-center leading-tight line-clamp-2">{category.name}</h2>
               </div>
             </Link>
           ))}
