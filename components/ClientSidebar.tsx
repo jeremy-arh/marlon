@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import Icon from './Icon';
 import { LOGO_URL } from '@/lib/constants';
@@ -28,6 +28,8 @@ export default function ClientSidebar() {
   const [signingOut, setSigningOut] = useState(false);
   const [loadingRole, setLoadingRole] = useState(false);
   const isMountedRef = useRef(true);
+  const userIdRef = useRef<string | null>(null);
+  const loadingRef = useRef(false);
 
   // Précharger toutes les routes de navigation au montage
   useEffect(() => {
@@ -44,186 +46,104 @@ export default function ClientSidebar() {
     });
   }, [router]);
 
-  useEffect(() => {
-    isMountedRef.current = true;
+  // Fonction pour charger le rôle via la route API serveur (plus fiable que le client Supabase)
+  const fetchUserRole = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     
-    const loadUserAndRole = async () => {
-      try {
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-        
-        // Check if component is still mounted before updating state
-        if (!isMountedRef.current) return;
-        
-        // Ignore AbortError from getUser
-        if (userError && (userError.name === 'AbortError' || userError.message?.includes('aborted') || userError.message?.includes('signal is aborted'))) {
-          return;
-        }
-        
-        if (userError || !currentUser) {
-          if (!isMountedRef.current) return;
-          setUser(null);
-          setUserRole(null);
-          setLoadingRole(false);
-          // Clear cache
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem(ROLE_CACHE_KEY);
-            sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
-          }
-          return;
-        }
-
-        if (!isMountedRef.current) return;
-        setUser(currentUser);
-
-        // Check cache first
-        if (typeof window !== 'undefined') {
-          const cachedUserId = sessionStorage.getItem(ROLE_CACHE_USER_KEY);
-          const cachedRole = sessionStorage.getItem(ROLE_CACHE_KEY);
-          
-          // If cache exists and user ID matches, use cached role immediately
-          if (cachedUserId === currentUser.id && cachedRole !== null) {
-            if (!isMountedRef.current) return;
-            setUserRole(cachedRole);
-            setLoadingRole(false);
-            // Still verify in background (but don't block UI)
-            supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', currentUser.id)
-              .eq('status', 'active')
-              .maybeSingle()
-              .then(({ data: roleData }) => {
-                if (!isMountedRef.current) return;
-                const role = roleData?.role || null;
-                if (role !== cachedRole) {
-                  setUserRole(role);
-                  sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
-                }
-              })
-              .catch((error) => {
-                // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
-                if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
-                  return;
-                }
-                // Silently fail for other errors - keep cached value
-              });
-            return;
-          }
-        }
-
-        // Load role from database
-        if (!isMountedRef.current) return;
-        setLoadingRole(true);
-        const { data: roleData, error: roleError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .eq('status', 'active')
-          .maybeSingle();
-
-        if (!isMountedRef.current) return;
-
-        if (roleError) {
-          // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
-          if (roleError.name === 'AbortError' || roleError.message?.includes('aborted') || roleError.message?.includes('signal is aborted')) {
-            return;
-          }
-          console.error('Error loading user role:', roleError);
-          setUserRole(null);
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem(ROLE_CACHE_KEY);
-            sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
-          }
-        } else {
-          const role = roleData?.role || null;
-          setUserRole(role);
-          // Cache the role
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
-            sessionStorage.setItem(ROLE_CACHE_USER_KEY, currentUser.id);
-          }
-        }
-      } catch (error: any) {
-        // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
-        if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
-          return;
-        }
-        // Only log non-AbortError errors
-        if (!isMountedRef.current) return;
-        console.error('Error in loadUserAndRole:', error);
+    if (isMountedRef.current) {
+      setLoadingRole(true);
+    }
+    
+    try {
+      const response = await fetch('/api/user/role');
+      
+      if (!isMountedRef.current) return;
+      
+      if (!response.ok) {
+        console.error('Error fetching user role: HTTP', response.status);
         setUser(null);
         setUserRole(null);
-      } finally {
-        if (isMountedRef.current) {
-          setLoadingRole(false);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (!isMountedRef.current) return;
+      
+      if (data.user) {
+        setUser(data.user);
+        userIdRef.current = data.user.id;
+        setUserRole(data.role);
+        
+        // Cache the role
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(ROLE_CACHE_KEY, data.role || '');
+          sessionStorage.setItem(ROLE_CACHE_USER_KEY, data.user.id);
+        }
+      } else {
+        setUser(null);
+        setUserRole(null);
+        userIdRef.current = null;
+        // Clear cache
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(ROLE_CACHE_KEY);
+          sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
         }
       }
-    };
+    } catch (error: any) {
+      if (!isMountedRef.current) return;
+      console.error('Error fetching user role:', error);
+    } finally {
+      loadingRef.current = false;
+      if (isMountedRef.current) {
+        setLoadingRole(false);
+      }
+    }
+  }, []);
 
-    loadUserAndRole();
+  useEffect(() => {
+    isMountedRef.current = true;
 
+    // Check cache first for instant display
+    if (typeof window !== 'undefined') {
+      const cachedUserId = sessionStorage.getItem(ROLE_CACHE_USER_KEY);
+      const cachedRole = sessionStorage.getItem(ROLE_CACHE_KEY);
+      
+      if (cachedUserId && cachedRole) {
+        setUserRole(cachedRole);
+        userIdRef.current = cachedUserId;
+        // Set a minimal user object from cache so the sidebar shows the profile section
+        setUser({ id: cachedUserId });
+      }
+    }
+
+    // Load user and role from the server API route (bypasses all browser-side auth issues)
+    fetchUserRole();
+
+    // Listen for auth state changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isMountedRef.current) return;
       
-      setUser(session?.user ?? null);
       if (session?.user) {
-        // Only reload role if user changed (different user ID)
-        const currentUserId = user?.id;
-        if (session.user.id !== currentUserId) {
+        // Only reload if user actually changed
+        if (session.user.id !== userIdRef.current) {
           // Clear old cache
           if (typeof window !== 'undefined') {
             sessionStorage.removeItem(ROLE_CACHE_KEY);
             sessionStorage.removeItem(ROLE_CACHE_USER_KEY);
           }
-          
-          if (!isMountedRef.current) return;
-          setLoadingRole(true);
-          try {
-            const { data: roleData, error: roleError } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', session.user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-            if (!isMountedRef.current) return;
-
-            if (roleError) {
-              // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
-              if (roleError.name === 'AbortError' || roleError.message?.includes('aborted') || roleError.message?.includes('signal is aborted')) {
-                return;
-              }
-              console.error('Error loading user role on auth change:', roleError);
-              setUserRole(null);
-            } else {
-              const role = roleData?.role || null;
-              setUserRole(role);
-              // Cache the role
-              if (typeof window !== 'undefined') {
-                sessionStorage.setItem(ROLE_CACHE_KEY, role || '');
-                sessionStorage.setItem(ROLE_CACHE_USER_KEY, session.user.id);
-              }
-            }
-          } catch (error: any) {
-            // Ignore AbortError completely - it's expected when component unmounts or navigation occurs
-            if (error?.name === 'AbortError' || error?.message?.includes('aborted') || error?.message?.includes('signal is aborted')) {
-              return;
-            }
-            // Only log non-AbortError errors
-            if (isMountedRef.current) {
-              console.error('Error in auth state change handler:', error);
-              setUserRole(null);
-            }
-          } finally {
-            if (isMountedRef.current) {
-              setLoadingRole(false);
-            }
-          }
+          userIdRef.current = session.user.id;
+          // Reload role from server
+          fetchUserRole();
         }
-        // If same user, keep the existing role from cache or state
       } else {
+        // User logged out
         if (isMountedRef.current) {
+          setUser(null);
           setUserRole(null);
+          userIdRef.current = null;
           setLoadingRole(false);
         }
         // Clear cache on logout
@@ -238,7 +158,7 @@ export default function ClientSidebar() {
       isMountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [user?.id]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSignOut = async (e?: React.MouseEvent) => {
     e?.preventDefault();
