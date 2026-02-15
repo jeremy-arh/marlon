@@ -118,28 +118,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add item to cart (column is 'duration_months' in DB)
-    // Each variant is now a full product, no separate variant_id needed
-    const { data: cartItem, error } = await supabase
+    // Check if this product already exists in the cart
+    const { data: existingItem } = await supabase
       .from('cart_items')
-      .insert({
-        cart_id: cart.id,
-        product_id: finalProductId,
-        quantity,
-        duration_months: finalDurationMonths,
-      })
-      .select(`
-        *,
-        products(
-          id,
-          name,
-          reference
-        )
-      `)
-      .single();
+      .select('id, quantity')
+      .eq('cart_id', cart.id)
+      .eq('product_id', finalProductId)
+      .maybeSingle();
+
+    let cartItem;
+    let error;
+
+    if (existingItem) {
+      // Product already in cart → increment quantity
+      const result = await supabase
+        .from('cart_items')
+        .update({
+          quantity: existingItem.quantity + quantity,
+          ...(finalDurationMonths ? { duration_months: finalDurationMonths } : {}),
+        })
+        .eq('id', existingItem.id)
+        .select(`
+          *,
+          products(
+            id,
+            name,
+            reference
+          )
+        `)
+        .single();
+
+      cartItem = result.data;
+      error = result.error;
+    } else {
+      // New product → insert new cart item
+      const result = await supabase
+        .from('cart_items')
+        .insert({
+          cart_id: cart.id,
+          product_id: finalProductId,
+          quantity,
+          duration_months: finalDurationMonths,
+        })
+        .select(`
+          *,
+          products(
+            id,
+            name,
+            reference
+          )
+        `)
+        .single();
+
+      cartItem = result.data;
+      error = result.error;
+    }
 
     if (error) {
-      console.error('Error inserting cart item:', error);
+      console.error('Error adding/updating cart item:', error);
       return NextResponse.json(
         { error: 'Failed to add item: ' + error.message },
         { status: 500 }
