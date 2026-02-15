@@ -295,12 +295,12 @@ export default function ProductDetailClient({
         {/* Product name */}
         <h1 className="text-xl lg:text-2xl font-bold text-[#1a365d] mb-4 lg:mb-6">{product.name}</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[320px_1fr] gap-6 lg:gap-8">
           {/* Left: Product images */}
           <div>
             {images.length > 0 ? (
               <div className="space-y-3">
-                <div className="relative aspect-square w-full bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="relative aspect-square w-full max-w-[320px] mx-auto md:max-w-none bg-white rounded-lg border border-gray-200 overflow-hidden">
                   <Image
                     src={images[selectedImageIndex]?.image_url || images[0].image_url}
                     alt={product.name}
