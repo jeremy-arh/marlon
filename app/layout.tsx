@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MARLON - Plateforme de Leasing Médical",
+  title: {
+    template: "%s | MARLON",
+    default: "MARLON - Plateforme de Leasing",
+  },
   description: "Plateforme de leasing de matériel médical",
 };
 

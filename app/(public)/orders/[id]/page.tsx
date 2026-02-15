@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import OrderDetailClient from './OrderDetailClient';
 
+export const metadata = { title: 'Détail commande' };
+
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

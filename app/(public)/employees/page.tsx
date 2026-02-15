@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import EmployeesClient from './EmployeesClient';
 
+export const metadata = { title: 'Employés' };
+
 export default async function EmployeesPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

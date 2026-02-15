@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import EquipmentsClient from './EquipmentsClient';
 
+export const metadata = { title: 'Équipements' };
+
 interface Employee {
   user_id: string;
   email: string;

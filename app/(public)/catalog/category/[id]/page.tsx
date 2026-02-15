@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import CategoryProductsClient from './CategoryProductsClient';
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: category } = await supabase.from('categories').select('name').eq('id', params.id).single();
+  return { title: category?.name || 'Catégorie' };
+}
 
 export default async function CategoryPage({
   params,

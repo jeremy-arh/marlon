@@ -84,7 +84,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${product.name} - MARLON`,
+    title: product.name,
     description: product.description || `Découvrez ${product.name} sur MARLON`,
   };
 }

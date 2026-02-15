@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import CatalogClient from './CatalogClient';
 
+export const metadata = { title: 'Catalogue' };
+
 export default async function CatalogPage() {
   const supabase = await createClient();
 
