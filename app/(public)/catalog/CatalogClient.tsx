@@ -458,7 +458,7 @@ export default function CatalogClient({
       {searchQuery.trim() ? (
         // Show search results (all products)
         searchResults.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
             {searchResults.map((product) => {
               const cheapestImage = productCheapestImages[product.id];
               const imageUrl = cheapestImage || getProductImage(product);
@@ -477,20 +477,20 @@ export default function CatalogClient({
                         src={imageUrl}
                         alt={product.name}
                         fill
-                        className="object-contain p-2"
+                        className="object-contain p-1.5"
                       />
                     ) : (
-                      <span className="text-gray-300 text-xs">Pas d&apos;image</span>
+                      <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
                     )}
                   </div>
-                  <div className="p-3 flex-1 flex flex-col">
-                    <h3 className="text-xs font-medium text-[#1a365d] text-center leading-tight line-clamp-3 mb-2">
+                  <div className="p-1.5 flex-1 flex flex-col">
+                    <h3 className="text-[10px] lg:text-[11px] font-medium text-[#1a365d] text-center leading-tight line-clamp-2 mb-1">
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
-                      <p className="text-[10px] text-gray-500">à partir de</p>
-                      <p className="text-xs font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € HT <span className="font-normal text-gray-500">/mois</span>
+                      <p className="text-[9px] text-gray-500">à partir de</p>
+                      <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
+                        {monthlyPrice.toFixed(2)} € <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>
                   </div>
@@ -507,7 +507,7 @@ export default function CatalogClient({
       ) : showItProducts ? (
         // Show IT products directly
         displayItProducts.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
             {displayItProducts.map((product) => {
               // Utiliser l'image de la variante la moins chère, sinon celle du produit principal
               const cheapestImage = productCheapestImages[product.id];
@@ -529,20 +529,20 @@ export default function CatalogClient({
                         src={imageUrl}
                         alt={product.name}
                         fill
-                        className="object-contain p-2"
+                        className="object-contain p-1.5"
                       />
                     ) : (
-                      <span className="text-gray-300 text-xs">Pas d&apos;image</span>
+                      <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
                     )}
                   </div>
-                  <div className="p-3 flex-1 flex flex-col">
-                    <h3 className="text-xs font-medium text-[#1a365d] text-center leading-tight line-clamp-3 mb-2">
+                  <div className="p-1.5 flex-1 flex flex-col">
+                    <h3 className="text-[10px] lg:text-[11px] font-medium text-[#1a365d] text-center leading-tight line-clamp-2 mb-1">
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
-                      <p className="text-[10px] text-gray-500">à partir de</p>
-                      <p className="text-xs font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € HT <span className="font-normal text-gray-500">/mois</span>
+                      <p className="text-[9px] text-gray-500">à partir de</p>
+                      <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
+                        {monthlyPrice.toFixed(2)} € <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>
                   </div>
