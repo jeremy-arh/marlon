@@ -295,7 +295,7 @@ export default function ProductDetailClient({
         {/* Product name */}
         <h1 className="text-xl lg:text-2xl font-bold text-[#1a365d] mb-4 lg:mb-6">{product.name}</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[320px_1fr] gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] lg:grid-cols-[420px_1fr] gap-6 lg:gap-8">
           {/* Left: Product images */}
           <div>
             {images.length > 0 ? (
