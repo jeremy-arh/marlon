@@ -245,3 +245,83 @@ export async function PUT(
     );
   }
 }
+
+/**
+ * PATCH — Mise à jour rapide inline (leaser, marge, type, catégories)
+ * Ne nécessite pas tous les champs obligatoires contrairement à PUT.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const updateFields: Record<string, any> = {};
+
+    // Champs simples (colonnes directes sur products)
+    if (body.default_leaser_id !== undefined) updateFields.default_leaser_id = body.default_leaser_id || null;
+    if (body.marlon_margin_percent !== undefined) updateFields.marlon_margin_percent = body.marlon_margin_percent;
+    if (body.product_type !== undefined) updateFields.product_type = body.product_type;
+
+    // Mettre à jour les champs simples si présents
+    if (Object.keys(updateFields).length > 0) {
+      const { error } = await serviceClient
+        .from('products')
+        .update(updateFields)
+        .eq('id', params.id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    // Mettre à jour les catégories (table de jonction)
+    if (body.category_ids !== undefined) {
+      await serviceClient
+        .from('product_categories')
+        .delete()
+        .eq('product_id', params.id);
+
+      if (Array.isArray(body.category_ids) && body.category_ids.length > 0) {
+        const categoryRecords = body.category_ids.map((categoryId: string) => ({
+          product_id: params.id,
+          category_id: categoryId,
+        }));
+
+        const { error: catError } = await serviceClient
+          .from('product_categories')
+          .insert(categoryRecords);
+
+        if (catError) {
+          return NextResponse.json({ error: catError.message }, { status: 500 });
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
+  }
+}

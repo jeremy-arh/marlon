@@ -48,6 +48,18 @@ export default async function ProductsPage() {
     .select('*')
     .order('months', { ascending: true });
 
+  // Load leasers for inline dropdown
+  const { data: leasers } = await serviceClient
+    .from('leasers')
+    .select('id, name')
+    .order('name');
+
+  // Load categories for inline dropdown
+  const { data: categories } = await serviceClient
+    .from('categories')
+    .select('id, name, product_type')
+    .order('name');
+
   // Fetch categories and specialties separately
   let enrichedProducts = productsData || [];
   if (productsData && productsData.length > 0) {
@@ -116,7 +128,12 @@ export default async function ProductsPage() {
 
   return (
     <div className="container mx-auto bg-gray-50 px-4 py-6 lg:px-6 lg:py-8">
-      <ProductsClient initialProducts={enrichedProducts} durations={durations || []} />
+      <ProductsClient
+        initialProducts={enrichedProducts}
+        durations={durations || []}
+        leasers={leasers || []}
+        categories={categories || []}
+      />
     </div>
   );
 }

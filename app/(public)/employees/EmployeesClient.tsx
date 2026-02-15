@@ -358,7 +358,7 @@ export default function EmployeesClient({
       {showInviteModal && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
             onClick={() => setShowInviteModal(false)}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
