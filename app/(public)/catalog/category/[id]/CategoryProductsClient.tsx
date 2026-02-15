@@ -70,6 +70,7 @@ export default function CategoryProductsClient({
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -100,6 +101,17 @@ export default function CategoryProductsClient({
 
   // Filter products
   const filteredProducts = products.filter((product) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesName = product.name.toLowerCase().includes(query);
+      const matchesRef = product.reference?.toLowerCase().includes(query);
+      const matchesBrand = product.brands?.name?.toLowerCase().includes(query);
+      if (!matchesName && !matchesRef && !matchesBrand) {
+        return false;
+      }
+    }
+
     // Brand filter
     if (selectedBrands.length > 0 && product.brand_id) {
       if (!selectedBrands.includes(product.brand_id)) {
@@ -220,11 +232,31 @@ export default function CategoryProductsClient({
         </div>
       </div>
 
-      {/* Mobile filter button */}
-      <div className="lg:hidden mb-4 flex justify-end">
+      {/* Search bar + Mobile filter icon */}
+      <div className="mb-6 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher un produit..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <Icon icon="mdi:close" className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Mobile filter button */}
         <button
           onClick={() => setIsFilterSheetOpen(true)}
-          className="relative flex items-center justify-center w-11 h-11 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          className="lg:hidden relative flex items-center justify-center w-11 h-11 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
           aria-label="Filtres"
         >
           <Icon icon="mdi:tune-variant" className="h-5 w-5" />
