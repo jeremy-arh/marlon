@@ -127,21 +127,29 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
         body: JSON.stringify({ leaser_id: leaserId || null }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              order.id === orderId 
-                ? { ...order, leaser_id: leaserId || null, leaser: leasers.find(l => l.id === leaserId) || null }
-                : order
-            )
-          );
-          router.refresh();
-        }
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId 
+              ? { 
+                  ...order, 
+                  leaser_id: leaserId || null, 
+                  leaser: leasers.find(l => l.id === leaserId) || null,
+                  total_amount_ht: data.data.total_amount_ht ?? order.total_amount_ht,
+                  order_items: data.data.order_items || order.order_items,
+                }
+              : order
+          )
+        );
+        router.refresh();
+      } else {
+        alert(data.error || 'Erreur lors de la mise à jour du leaser');
       }
     } catch (error) {
       console.error('Error updating leaser:', error);
+      alert('Erreur réseau lors de la mise à jour du leaser');
     } finally {
       setUpdatingOrders(prev => {
         const next = new Set(prev);
@@ -160,19 +168,21 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
         body: JSON.stringify({ status }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              order.id === orderId ? { ...order, status } : order
-            )
-          );
-          router.refresh();
-        }
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId ? { ...order, status } : order
+          )
+        );
+        router.refresh();
+      } else {
+        alert(data.error || 'Erreur lors de la mise à jour du statut');
       }
     } catch (error) {
       console.error('Error updating status:', error);
+      alert('Erreur réseau lors de la mise à jour du statut');
     } finally {
       setUpdatingOrders(prev => {
         const next = new Set(prev);
@@ -191,26 +201,28 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
         body: JSON.stringify({ leasing_duration_months: durationMonths }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              order.id === orderId 
-                ? { 
-                    ...order, 
-                    leasing_duration_months: data.data.leasing_duration_months,
-                    total_amount_ht: data.data.total_amount_ht,
-                    order_items: data.data.order_items || order.order_items
-                  }
-                : order
-            )
-          );
-          router.refresh();
-        }
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId 
+              ? { 
+                  ...order, 
+                  leasing_duration_months: data.data.leasing_duration_months,
+                  total_amount_ht: data.data.total_amount_ht ?? order.total_amount_ht,
+                  order_items: data.data.order_items || order.order_items
+                }
+              : order
+          )
+        );
+        router.refresh();
+      } else {
+        alert(data.error || 'Erreur lors de la mise à jour de la durée');
       }
     } catch (error) {
       console.error('Error updating duration:', error);
+      alert('Erreur réseau lors de la mise à jour de la durée');
     } finally {
       setUpdatingOrders(prev => {
         const next = new Set(prev);

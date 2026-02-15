@@ -133,19 +133,14 @@ export async function PUT(
     const newDurationMonths = leasing_duration_months !== undefined 
       ? leasing_duration_months 
       : currentOrder.leasing_duration_months;
+    // Use the explicitly provided leaser_id if defined, otherwise keep current
     const newLeaserId = leaser_id !== undefined 
-      ? (leaser_id || currentOrder.leaser_id) 
+      ? (leaser_id || null) 
       : currentOrder.leaser_id;
 
-    // Recalculate prices if duration or leaser changed
-    if (leasing_duration_months !== undefined || leaser_id !== undefined) {
-      if (!newLeaserId) {
-        return NextResponse.json(
-          { error: 'Veuillez d\'abord sélectionner un leaser pour cette commande' },
-          { status: 400 }
-        );
-      }
-
+    // Recalculate prices if duration or leaser changed and we have a valid leaser
+    const needsRecalculation = leasing_duration_months !== undefined || leaser_id !== undefined;
+    if (needsRecalculation && newLeaserId) {
       // Get all order items
       const { data: orderItems } = await serviceClient
         .from('order_items')
@@ -160,7 +155,7 @@ export async function PUT(
           quantity: item.quantity,
         }));
 
-        // Calculate initial total
+        // Calculate initial total (sum of selling prices)
         const initialTotal = itemsForRecalc.reduce((sum, item) => {
           const sellingPrice = item.purchasePrice * (1 + item.marginPercent / 100);
           return sum + sellingPrice * item.quantity;
@@ -204,6 +199,9 @@ export async function PUT(
         const newTotal = recalculatedItems.reduce((sum, item) => sum + item.calculatedPrice, 0);
         updates.total_amount_ht = newTotal;
       }
+    } else if (needsRecalculation && !newLeaserId) {
+      // Leaser was cleared — no recalculation possible, just update the order
+      // Keep existing prices as-is (they were calculated with the previous leaser)
     }
 
     if (leasing_duration_months !== undefined) {
