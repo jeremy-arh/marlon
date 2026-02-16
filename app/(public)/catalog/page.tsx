@@ -10,7 +10,7 @@ export default async function CatalogPage() {
   // Fetch all categories with images and product_type
   const { data: categories } = await supabase
     .from('categories')
-    .select('id, name, description, image_url, product_type')
+    .select('id, name, slug, description, image_url, product_type')
     .order('name');
 
   // Fetch all specialties
@@ -80,6 +80,7 @@ export default async function CatalogPage() {
     .select(`
       id,
       name,
+      slug,
       reference,
       description,
       purchase_price_ht,
@@ -123,6 +124,7 @@ export default async function CatalogPage() {
     .select(`
       id,
       name,
+      slug,
       reference,
       description,
       purchase_price_ht,
@@ -166,7 +168,7 @@ export default async function CatalogPage() {
   if (itProductIds.length > 0) {
     const { data: children } = await supabase
       .from('products')
-      .select('id, parent_product_id, purchase_price_ht, marlon_margin_percent, variant_data, product_images(image_url, order_index)')
+      .select('id, slug, parent_product_id, purchase_price_ht, marlon_margin_percent, variant_data, product_images(image_url, order_index)')
       .in('parent_product_id', itProductIds);
     allChildProducts = children || [];
   }
@@ -176,8 +178,9 @@ export default async function CatalogPage() {
   const productCheapestImages: Record<string, string | null> = {};
   const productCheapestVariantData: Record<string, Record<string, string>> = {};
   const productCheapestId: Record<string, string> = {};
+  const productCheapestSlug: Record<string, string> = {};
   for (const product of (itProducts || [])) {
-    const items: { id: string; price: number; image: string | null; variantData: Record<string, string> | null }[] = [];
+    const items: { id: string; slug: string; price: number; image: string | null; variantData: Record<string, string> | null }[] = [];
     
     // Main product price
     const mainHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
@@ -185,7 +188,7 @@ export default async function CatalogPage() {
     const mainImage = product.product_images?.length > 0
       ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
       : null;
-    items.push({ id: product.id, price: mainHT * mainCoef, image: mainImage, variantData: product.variant_data || null });
+    items.push({ id: product.id, slug: product.slug, price: mainHT * mainCoef, image: mainImage, variantData: product.variant_data || null });
 
     // Child products prices
     const children = allChildProducts.filter((c: any) => c.parent_product_id === product.id);
@@ -196,7 +199,7 @@ export default async function CatalogPage() {
         const cImage = child.product_images?.length > 0
           ? [...child.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
           : null;
-        items.push({ id: child.id, price: cHT * cCoef, image: cImage, variantData: child.variant_data || null });
+        items.push({ id: child.id, slug: child.slug, price: cHT * cCoef, image: cImage, variantData: child.variant_data || null });
       }
     }
 
@@ -206,6 +209,7 @@ export default async function CatalogPage() {
       productCheapestPrices[product.id] = items[0].price;
       productCheapestImages[product.id] = items[0].image;
       productCheapestId[product.id] = items[0].id;
+      productCheapestSlug[product.id] = items[0].slug;
       if (items[0].variantData) {
         productCheapestVariantData[product.id] = items[0].variantData;
       }
@@ -224,6 +228,7 @@ export default async function CatalogPage() {
     productCheapestPrices[product.id] = monthlyPrice;
     productCheapestImages[product.id] = image;
     productCheapestId[product.id] = product.id;
+    productCheapestSlug[product.id] = product.slug;
   }
 
   return (

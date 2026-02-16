@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import Button from '@/components/Button';
 import SideModal from '@/components/SideModal';
 import CategoryForm from '@/components/CategoryForm';
+import { supabase } from '@/lib/supabase/client';
 
 interface CategoriesClientProps {
   initialCategories: any[];
@@ -16,8 +17,9 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
   const [categories, setCategories] = useState<any[]>(initialCategories);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/categories/list', {
         cache: 'no-store',
@@ -29,7 +31,25 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
     } catch (error) {
       console.error('Error loading categories:', error);
     }
-  };
+  }, []);
+
+  // Realtime subscription: auto-refresh on INSERT, UPDATE, DELETE
+  useEffect(() => {
+    const channel = supabase
+      .channel('categories-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        () => {
+          loadCategories();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadCategories]);
 
   const handleAdd = () => {
     setEditingCategory(null);
@@ -39,6 +59,30 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
   const handleEdit = (category: any) => {
     setEditingCategory(category);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = async (category: any) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la catégorie "${category.name}" ?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/categories/${category.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Erreur lors de la suppression');
+        return;
+      }
+
+      loadCategories();
+      router.refresh();
+    } catch (error) {
+      alert('Une erreur est survenue lors de la suppression');
+    }
   };
 
   const handleSuccess = () => {
@@ -66,6 +110,8 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
           <input
             type="search"
             placeholder="Rechercher une catégorie"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-md border border-gray-300 bg-white px-10 py-2.5 text-sm text-black placeholder-gray-500 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
           />
         </div>
@@ -86,8 +132,18 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {categories && categories.length > 0 ? (
-                categories.map((category: any) => (
+              {(() => {
+                const filtered = categories.filter(c => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    (c.name || '').toLowerCase().includes(q) ||
+                    (c.description || '').toLowerCase().includes(q) ||
+                    (c.product_type || '').toLowerCase().includes(q)
+                  );
+                });
+                return filtered.length > 0 ? (
+                filtered.map((category: any) => (
                   <tr key={category.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 whitespace-nowrap">
                       {category.image_url ? (
@@ -161,7 +217,11 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
                         >
                           <Icon icon="fluent:edit-24-filled" className="h-5 w-5" />
                         </button>
-                        <button className="text-red-600 hover:text-red-800">
+                        <button
+                          onClick={() => handleDelete(category)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Supprimer"
+                        >
                           <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
                         </button>
                       </div>
@@ -174,7 +234,8 @@ export default function CategoriesClient({ initialCategories }: CategoriesClient
                     Aucune catégorie trouvée
                   </td>
                 </tr>
-              )}
+              );
+              })()}
             </tbody>
           </table>
         </div>

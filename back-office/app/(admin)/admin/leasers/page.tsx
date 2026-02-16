@@ -14,6 +14,7 @@ export default function LeasersPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLeaser, setEditingLeaser] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadLeasers();
@@ -55,6 +56,30 @@ export default function LeasersPage() {
     setIsModalOpen(true);
   };
 
+  const handleDelete = async (leaser: any) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le leaser "${leaser.name}" ? Ses coefficients seront également supprimés.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/leasers/${leaser.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Erreur lors de la suppression');
+        return;
+      }
+
+      loadLeasers();
+      router.refresh();
+    } catch (error) {
+      alert('Une erreur est survenue lors de la suppression');
+    }
+  };
+
   const handleSuccess = () => {
     // Only close modal if editing, keep open for new leasers (mass creation)
     if (editingLeaser) {
@@ -89,6 +114,8 @@ export default function LeasersPage() {
           <input
             type="search"
             placeholder="Rechercher un leaser"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-md border border-gray-300 bg-white px-10 py-2.5 text-sm text-black placeholder-gray-500 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
           />
         </div>
@@ -108,8 +135,18 @@ export default function LeasersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {leasers && leasers.length > 0 ? (
-                leasers.map((leaser: any) => (
+              {(() => {
+                const filtered = leasers.filter(l => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    (l.name || '').toLowerCase().includes(q) ||
+                    (l.contact_email || '').toLowerCase().includes(q) ||
+                    (l.contact_phone || '').toLowerCase().includes(q)
+                  );
+                });
+                return filtered.length > 0 ? (
+                filtered.map((leaser: any) => (
                   <tr key={leaser.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-black">{leaser.name}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{leaser.contact_email || '-'}</td>
@@ -132,6 +169,13 @@ export default function LeasersPage() {
                         >
                           <Icon icon="mingcute:chart-bar-line" className="h-5 w-5" />
                         </button>
+                        <button
+                          onClick={() => handleDelete(leaser)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Supprimer"
+                        >
+                          <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -142,7 +186,8 @@ export default function LeasersPage() {
                     Aucun leaser trouvé
                   </td>
                 </tr>
-              )}
+              );
+              })()}
             </tbody>
           </table>
         </div>

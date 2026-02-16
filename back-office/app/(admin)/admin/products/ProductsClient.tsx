@@ -197,21 +197,21 @@ function InlineSearchableSelect({
       {isOpen && (
         <div className="absolute z-30 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
           {/* Barre de recherche */}
-          {options.length > 5 && (
-            <div className="p-1.5 border-b border-gray-100">
-              <div className="relative">
-                <Icon icon="mdi:magnify" className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Rechercher..."
-                  className="w-full pl-6 pr-2 py-1 text-xs border border-gray-200 rounded bg-gray-50 text-black placeholder-gray-400 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
-                />
-              </div>
+          <div className="p-1.5 border-b border-gray-100">
+            <div className="relative">
+              <Icon icon="mdi:magnify" className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => { e.stopPropagation(); setSearch(e.target.value); }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Rechercher..."
+                className="w-full pl-6 pr-2 py-1 text-xs border border-gray-200 rounded bg-gray-50 text-black placeholder-gray-400 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              />
             </div>
-          )}
+          </div>
 
           {/* Options */}
           <div className="max-h-48 overflow-y-auto">
@@ -398,7 +398,10 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de la mise à jour');
+        const data = await response.json().catch(() => ({}));
+        const msg = data.error || 'Erreur lors de la mise à jour';
+        console.error('Erreur PATCH:', msg);
+        throw new Error(msg);
       }
 
       setSavingFields(prev => ({ ...prev, [savingKey]: 'saved' }));
@@ -411,7 +414,7 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
       }, 1500);
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur PATCH:', error);
       setSavingFields(prev => ({ ...prev, [savingKey]: 'error' }));
       setTimeout(() => {
@@ -451,7 +454,17 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
     await patchProduct(productId, 'type', { product_type: productType });
   };
 
+  const categoriesPatchRef = useRef<Record<string, AbortController>>({});
+
   const handleCategoriesChange = async (productId: string, categoryIds: string[]) => {
+    // Annuler la requête précédente pour ce produit (évite les conditions de course)
+    if (categoriesPatchRef.current[productId]) {
+      categoriesPatchRef.current[productId].abort();
+    }
+
+    // Sauvegarder les catégories actuelles pour pouvoir restaurer en cas d'erreur
+    const previousCategories = products.find(p => p.id === productId)?.product_categories || [];
+
     // Mise à jour locale optimiste
     const newCategories = categoryIds.map(cid => {
       const cat = categories.find(c => c.id === cid);
@@ -460,7 +473,15 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
     setProducts(prev => prev.map(p =>
       p.id === productId ? { ...p, product_categories: newCategories } : p
     ));
-    await patchProduct(productId, 'categories', { category_ids: categoryIds });
+
+    const success = await patchProduct(productId, 'categories', { category_ids: categoryIds });
+
+    // Restaurer les catégories précédentes en cas d'échec
+    if (!success) {
+      setProducts(prev => prev.map(p =>
+        p.id === productId ? { ...p, product_categories: previousCategories } : p
+      ));
+    }
   };
 
   // Helper : statut de sauvegarde
@@ -545,6 +566,7 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
       {/* Filter Dropdowns — Searchable */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <SearchableSelect
+          className="min-w-[160px]"
           placeholder="Tous les types"
           value={filterType}
           onChange={(val) => {
@@ -555,50 +577,61 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
               if (cat && cat.product_type !== val) setFilterCategory('');
             }
           }}
-          options={PRODUCT_TYPES.map(pt => ({ value: pt.value, label: pt.label }))}
+          options={[
+            { value: '', label: 'Tous les types' },
+            ...PRODUCT_TYPES.map(pt => ({ value: pt.value, label: pt.label })),
+          ]}
         />
 
         <SearchableSelect
+          className="min-w-[160px]"
           placeholder="Toutes les marques"
           value={filterBrand}
           onChange={setFilterBrand}
-          options={uniqueBrands.map(b => ({ value: b, label: b }))}
+          options={[
+            { value: '', label: 'Toutes les marques' },
+            ...uniqueBrands.map(b => ({ value: b, label: b })),
+          ]}
         />
 
         <SearchableSelect
+          className="min-w-[160px]"
           placeholder="Tous les leasers"
           value={filterLeaser}
           onChange={setFilterLeaser}
           options={[
+            { value: '', label: 'Tous les leasers' },
             { value: '__none__', label: 'Sans leaser' },
             ...leasers.map(l => ({ value: l.id, label: l.name })),
           ]}
         />
 
         <SearchableSelect
+          className="min-w-[160px]"
           placeholder="Toutes les marges"
           value={filterMargin}
           onChange={setFilterMargin}
-          options={uniqueMargins.map(m => ({ value: String(m), label: `${m}%` }))}
+          options={[
+            { value: '', label: 'Toutes les marges' },
+            ...uniqueMargins.map(m => ({ value: String(m), label: `${m}%` })),
+          ]}
         />
 
         <SearchableSelect
+          className="min-w-[160px]"
           placeholder="Toutes les catégories"
           value={filterCategory}
           onChange={setFilterCategory}
-          options={(filterType
-            ? categories.filter(c => c.product_type === filterType)
-            : categories
-          ).map(c => ({
-            value: c.id,
-            label: c.name,
-            badge: c.product_type === 'it_equipment' ? 'IT' : c.product_type === 'furniture' ? 'Mob.' : 'Méd.',
-            badgeColor: c.product_type === 'it_equipment'
-              ? 'bg-blue-100 text-blue-700'
-              : c.product_type === 'furniture'
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-green-100 text-green-700',
-          }))}
+          options={[
+            { value: '', label: 'Toutes les catégories' },
+            ...(filterType
+              ? categories.filter(c => c.product_type === filterType)
+              : categories
+            ).map(c => ({
+              value: c.id,
+              label: c.name,
+            })),
+          ]}
         />
 
         {/* Réinitialiser + compteur */}
@@ -962,7 +995,9 @@ function CategoriesDropdown({
                 ref={searchInputRef}
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { e.stopPropagation(); setSearch(e.target.value); }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 placeholder="Rechercher une catégorie..."
                 className="w-full pl-6 pr-2 py-1 text-xs border border-gray-200 rounded bg-gray-50 text-black placeholder-gray-400 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
               />

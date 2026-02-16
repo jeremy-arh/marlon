@@ -74,6 +74,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(24);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [isFooterExpanded, setIsFooterExpanded] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Handle opening/closing animation
@@ -426,64 +427,90 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
         {/* Footer */}
         {cartItems.length > 0 && (
-          <div className="border-t border-gray-200 p-6 bg-white space-y-4">
-            {/* Duration Selector */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[#1a365d]">Nombre de mensualités :</span>
-              <select
-                value={selectedDuration}
-                onChange={(e) => setSelectedDuration(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
-              >
-                {DURATION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="border-t border-gray-200 bg-white">
+            {/* Mobile toggle handle */}
+            <button
+              onClick={() => setIsFooterExpanded(!isFooterExpanded)}
+              className="w-full flex flex-col items-center pt-2 pb-1 md:hidden"
+              aria-label={isFooterExpanded ? 'Réduire le résumé' : 'Voir le résumé'}
+            >
+              <div className="w-10 h-1 rounded-full bg-gray-300 mb-1" />
+              <Icon
+                icon={isFooterExpanded ? 'mdi:chevron-down' : 'mdi:chevron-up'}
+                className="h-5 w-5 text-gray-400"
+              />
+            </button>
 
-            {/* Summary Box */}
-            <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-              <div className="text-sm text-gray-500">
-                Nombre d'articles: {itemCount}
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium text-[#1a365d]">Loyer HT :</span>
-                  <span className="text-gray-700">{totalMonthlyHT.toFixed(2)} € / mois</span>
+            <div className="p-6 pt-2 md:pt-6 space-y-4">
+              {/* Collapsible section on mobile */}
+              <div
+                className={`space-y-4 overflow-hidden transition-all duration-300 ease-in-out md:max-h-none md:opacity-100 ${
+                  isFooterExpanded
+                    ? 'max-h-[500px] opacity-100'
+                    : 'max-h-0 opacity-0 md:max-h-none md:opacity-100'
+                }`}
+              >
+                {/* Duration Selector */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#1a365d]">Nombre de mensualités :</span>
+                  <select
+                    value={selectedDuration}
+                    onChange={(e) => setSelectedDuration(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
+                  >
+                    {DURATION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-[#1a365d]">Durée du contrat :</span>
-                  <span className="text-gray-700">{selectedDuration} mois</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-[#1a365d]">Livraison :</span>
-                  <span className="text-marlon-green font-medium">Offerte</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200">
-                  <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
-                  <span className="font-bold text-[#1a365d]">{totalMonthlyTTC.toFixed(2)} € / mois</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={handleAddMore}
-                className="w-full py-3 border-2 border-marlon-green text-marlon-green font-semibold rounded-lg hover:bg-marlon-green/5 transition-colors flex items-center justify-center gap-2"
-              >
-                <Icon icon="mdi:plus" className="h-5 w-5" />
-                Ajouter des équipements
-              </button>
-              <button
-                onClick={handleCheckout}
-                className="w-full py-3 bg-marlon-green text-white font-semibold rounded-lg hover:bg-marlon-green/90 transition-colors"
-              >
-                Valider mon panier
-              </button>
+                {/* Summary Box */}
+                <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                  <div className="text-sm text-gray-500">
+                    Nombre d&apos;articles: {itemCount}
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-[#1a365d]">Loyer HT :</span>
+                      <span className="text-gray-700">{totalMonthlyHT.toFixed(2)} € / mois</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-[#1a365d]">Durée du contrat :</span>
+                      <span className="text-gray-700">{selectedDuration} mois</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-[#1a365d]">Livraison :</span>
+                      <span className="text-marlon-green font-medium">Offerte</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Always visible: Total TTC + Buttons */}
+              <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
+                <span className="font-bold text-[#1a365d]">{totalMonthlyTTC.toFixed(2)} € / mois</span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={handleAddMore}
+                  className="w-full py-3 border-2 border-marlon-green text-marlon-green font-semibold rounded-lg hover:bg-marlon-green/5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Icon icon="mdi:plus" className="h-5 w-5" />
+                  Ajouter des équipements
+                </button>
+                <button
+                  onClick={handleCheckout}
+                  className="w-full py-3 bg-marlon-green text-white font-semibold rounded-lg hover:bg-marlon-green/90 transition-colors"
+                >
+                  Valider mon panier
+                </button>
+              </div>
             </div>
           </div>
         )}

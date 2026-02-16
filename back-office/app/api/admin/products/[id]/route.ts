@@ -296,10 +296,15 @@ export async function PATCH(
 
     // Mettre à jour les catégories (table de jonction)
     if (body.category_ids !== undefined) {
-      await serviceClient
+      const { error: deleteError } = await serviceClient
         .from('product_categories')
         .delete()
         .eq('product_id', params.id);
+
+      if (deleteError) {
+        console.error('Error deleting product_categories:', deleteError);
+        return NextResponse.json({ error: 'Erreur lors de la suppression des catégories: ' + deleteError.message }, { status: 500 });
+      }
 
       if (Array.isArray(body.category_ids) && body.category_ids.length > 0) {
         const categoryRecords = body.category_ids.map((categoryId: string) => ({
@@ -312,7 +317,8 @@ export async function PATCH(
           .insert(categoryRecords);
 
         if (catError) {
-          return NextResponse.json({ error: catError.message }, { status: 500 });
+          console.error('Error inserting product_categories:', catError);
+          return NextResponse.json({ error: 'Erreur lors de l\'ajout des catégories: ' + catError.message }, { status: 500 });
         }
       }
     }

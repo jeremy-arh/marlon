@@ -13,6 +13,7 @@ export default function BrandsPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadBrands();
@@ -100,6 +101,8 @@ export default function BrandsPage() {
           <input
             type="search"
             placeholder="Rechercher une marque"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-md border border-gray-300 bg-white px-10 py-2.5 text-sm text-black placeholder-gray-500 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
           />
         </div>
@@ -123,8 +126,13 @@ export default function BrandsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {brands && brands.length > 0 ? (
-                brands.map((brand: any) => (
+              {(() => {
+                const filtered = brands.filter(b => {
+                  if (!searchQuery.trim()) return true;
+                  return (b.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+                });
+                return filtered.length > 0 ? (
+                filtered.map((brand: any) => (
                   <tr key={brand.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-black">
                       {brand.name}
@@ -156,7 +164,8 @@ export default function BrandsPage() {
                     Aucune marque trouvée
                   </td>
                 </tr>
-              )}
+              );
+              })()}
             </tbody>
           </table>
         </div>

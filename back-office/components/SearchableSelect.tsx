@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 
 interface Option {
@@ -27,30 +27,37 @@ export default function SearchableSelect({
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setSearchTerm('');
       }
     };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
 
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const q = searchTerm.toLowerCase();
+    return options.filter((option) => option.label.toLowerCase().includes(q));
+  }, [options, searchTerm]);
 
   const selectedOption = options.find((opt) => opt.value === value);
 
   return (
-    <div ref={dropdownRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -66,7 +73,7 @@ export default function SearchableSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-gray-300 bg-white shadow-lg">
+        <div className="absolute z-50 mt-1 w-full min-w-[200px] rounded-md border border-gray-300 bg-white shadow-lg">
           <div className="p-2 border-b border-gray-200">
             <div className="relative">
               <Icon
@@ -74,12 +81,17 @@ export default function SearchableSelect({
                 className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
               />
               <input
+                ref={inputRef}
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setSearchTerm(e.target.value);
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 placeholder="Rechercher..."
                 className="w-full rounded-md border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-black placeholder-gray-400 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
-                autoFocus
               />
             </div>
           </div>

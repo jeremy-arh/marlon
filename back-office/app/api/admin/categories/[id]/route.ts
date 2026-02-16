@@ -100,3 +100,85 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+
+    // Verify user is super admin
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Check if category is used by products
+    const { data: productCategories } = await serviceClient
+      .from('product_categories')
+      .select('product_id')
+      .eq('category_id', params.id)
+      .limit(1);
+
+    if (productCategories && productCategories.length > 0) {
+      return NextResponse.json(
+        { error: 'Cette catégorie est utilisée par des produits et ne peut pas être supprimée' },
+        { status: 400 }
+      );
+    }
+
+    // Delete associated specialties (category_specialties)
+    const { error: specError } = await serviceClient
+      .from('category_specialties')
+      .delete()
+      .eq('category_id', params.id);
+
+    if (specError) {
+      console.error('Error deleting category_specialties:', specError);
+    }
+
+    // Delete associated IT types (category_it_types)
+    const { error: itError } = await serviceClient
+      .from('category_it_types')
+      .delete()
+      .eq('category_id', params.id);
+
+    if (itError) {
+      console.error('Error deleting category_it_types:', itError);
+    }
+
+    // Delete the category
+    const { error } = await serviceClient
+      .from('categories')
+      .delete()
+      .eq('id', params.id);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
+  }
+}

@@ -25,7 +25,8 @@ export default async function ProductsPage() {
     redirect('/login');
   }
 
-  // Load products server-side — only parent products and standalone products (not variants)
+  // Load products server-side with nested relations (categories + specialties included)
+  // This avoids .in() queries with hundreds of IDs which exceed URL length limits
   const { data: productsData, error } = await serviceClient
     .from('products')
     .select(`
@@ -33,7 +34,9 @@ export default async function ProductsPage() {
       brand:brands(name),
       supplier:suppliers(name),
       default_leaser:leasers(name),
-      product_images(image_url, order_index)
+      product_images(image_url, order_index),
+      product_categories(category_id, category:categories(name)),
+      product_specialties(specialty_id, specialty:specialties(name))
     `)
     .is('parent_product_id', null)
     .order('created_at', { ascending: false });
@@ -60,39 +63,20 @@ export default async function ProductsPage() {
     .select('id, name, product_type')
     .order('name');
 
-  // Fetch categories and specialties separately
+  // Count child products (variants) — fetch all variants at once
+  const { data: childCountsData } = await serviceClient
+    .from('products')
+    .select('parent_product_id')
+    .not('parent_product_id', 'is', null);
+
+  const childCounts: Record<string, number> = {};
+  (childCountsData || []).forEach((c: any) => {
+    childCounts[c.parent_product_id] = (childCounts[c.parent_product_id] || 0) + 1;
+  });
+
+  // Calculate prices for each product and duration
   let enrichedProducts = productsData || [];
   if (productsData && productsData.length > 0) {
-    const productIds = productsData.map((p: any) => p.id);
-    
-    const { data: categoriesData } = await serviceClient
-      .from('product_categories')
-      .select('product_id, category_id, category:categories(name)')
-      .in('product_id', productIds);
-
-    let specialtiesData: any[] = [];
-    try {
-      const { data: specialties } = await serviceClient
-        .from('product_specialties')
-        .select('product_id, specialty_id, specialty:specialties(name)')
-        .in('product_id', productIds);
-      specialtiesData = specialties || [];
-    } catch (e) {
-      // Table might not exist yet
-    }
-
-    // Count child products (variants) per parent
-    const { data: childCountsData } = await serviceClient
-      .from('products')
-      .select('parent_product_id')
-      .in('parent_product_id', productIds);
-    
-    const childCounts: Record<string, number> = {};
-    (childCountsData || []).forEach((c: any) => {
-      childCounts[c.parent_product_id] = (childCounts[c.parent_product_id] || 0) + 1;
-    });
-
-    // Calculate prices for each product and duration
     enrichedProducts = await Promise.all(
       productsData.map(async (product: any) => {
         const pricesByDuration: Record<number, { monthly: number; total: number }> = {};
@@ -117,8 +101,6 @@ export default async function ProductsPage() {
 
         return {
           ...product,
-          product_categories: categoriesData?.filter((pc: any) => pc.product_id === product.id) || [],
-          product_specialties: specialtiesData?.filter((ps: any) => ps.product_id === product.id) || [],
           pricesByDuration,
           variantCount: childCounts[product.id] || 0,
         };

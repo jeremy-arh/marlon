@@ -76,6 +76,7 @@ export default function CheckoutPage() {
   const [cartId, setCartId] = useState<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
   // Step 1: Company data
   const [companyData, setCompanyData] = useState({
@@ -555,10 +556,10 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-white">
       {/* Fixed Stepper Header */}
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-center">
             {/* Steps indicator */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               {[
                 { num: 1, label: 'Entreprise' },
                 { num: 2, label: 'Livraison' },
@@ -566,11 +567,11 @@ export default function CheckoutPage() {
               ].map((step, index) => (
                 <div key={step.num} className="flex items-center">
                   {index > 0 && (
-                    <div className={`w-16 h-0.5 mr-4 ${currentStep > index ? 'bg-marlon-green' : 'bg-gray-300'}`} />
+                    <div className={`w-8 sm:w-16 h-0.5 mr-2 sm:mr-4 ${currentStep > index ? 'bg-marlon-green' : 'bg-gray-300'}`} />
                   )}
                   <div className="flex flex-col items-center">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
                         currentStep > step.num
                           ? 'bg-marlon-green text-white'
                           : currentStep === step.num
@@ -579,12 +580,12 @@ export default function CheckoutPage() {
                       }`}
                     >
                       {currentStep > step.num ? (
-                        <Icon icon="mdi:check" className="h-5 w-5" />
+                        <Icon icon="mdi:check" className="h-4 w-4 sm:h-5 sm:w-5" />
                       ) : (
                         step.num
                       )}
                     </div>
-                    <span className={`mt-1 text-xs ${currentStep >= step.num ? 'text-gray-900' : 'text-gray-400'}`}>
+                    <span className={`mt-1 text-[10px] sm:text-xs ${currentStep >= step.num ? 'text-gray-900' : 'text-gray-400'}`}>
                       {step.label}
                     </span>
                   </div>
@@ -595,10 +596,10 @@ export default function CheckoutPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-48 lg:pb-8">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
           {/* Main content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Back button */}
             <button
               onClick={currentStep === 1 ? () => router.push('/catalog') : handlePrevStep}
@@ -734,11 +735,11 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Benefits section */}
-                <div className="mt-12 pt-8 border-t border-gray-200">
-                  <p className="text-center text-gray-600 mb-8">
+                <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-200">
+                  <p className="text-center text-gray-600 mb-6 sm:mb-8 text-sm sm:text-base">
                     La 1ère marketplace de location d&apos;équipements médicaux pensée et développée en collaboration avec des professionnels de santé.
                   </p>
-                  <div className="grid grid-cols-4 gap-4 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                     {[
                       { icon: 'mdi:hand-heart', label: 'Les meilleurs équipements' },
                       { icon: 'mdi:thumb-up', label: 'Un outil de gestion de vos équipements' },
@@ -746,10 +747,10 @@ export default function CheckoutPage() {
                       { icon: 'mdi:leaf', label: 'Une politique RSE Responsable' },
                     ].map((benefit, index) => (
                       <div key={index} className="flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                          <Icon icon={benefit.icon} className="h-6 w-6 text-gray-600" />
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+                          <Icon icon={benefit.icon} className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
                         </div>
-                        <span className="text-sm text-gray-600">{benefit.label}</span>
+                        <span className="text-xs sm:text-sm text-gray-600">{benefit.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1004,7 +1005,7 @@ export default function CheckoutPage() {
                 <div className="border border-gray-200 rounded-lg p-4 mb-6">
                   {!editingSigner ? (
                     <>
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                         <div>
                           <p className="font-medium text-gray-900">{signerData.name || 'Nom du signataire'}</p>
                           <p className="text-sm text-gray-600">{signerData.phone || 'Téléphone non renseigné'}</p>
@@ -1013,12 +1014,12 @@ export default function CheckoutPage() {
                         <button 
                           type="button"
                           onClick={() => setEditingSigner(true)}
-                          className="text-sm text-gray-500 hover:text-gray-700 border border-gray-300 px-3 py-1 rounded"
+                          className="text-sm text-gray-500 hover:text-gray-700 border border-gray-300 px-3 py-1 rounded self-start flex-shrink-0"
                         >
                           Modifier le signataire
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <input
                             type="text"
@@ -1295,8 +1296,8 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          {/* Right sidebar - Summary */}
-          <div className="w-96 flex-shrink-0">
+          {/* Right sidebar - Summary (Desktop) */}
+          <div className="hidden lg:block w-96 flex-shrink-0">
             <div className="sticky top-24">
               <div className="border border-gray-200 rounded-lg p-6 bg-white">
                 <h2 className="text-lg font-bold text-[#1a365d] mb-4">Récapitulatif</h2>
@@ -1395,6 +1396,124 @@ export default function CheckoutPage() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Mobile sticky bottom summary */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
+        {/* Toggle handle */}
+        <button
+          onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+          className="w-full flex flex-col items-center pt-2 pb-1"
+          aria-label={isSummaryExpanded ? 'Réduire le récapitulatif' : 'Voir le récapitulatif'}
+        >
+          <div className="w-10 h-1 rounded-full bg-gray-300 mb-1" />
+          <Icon
+            icon={isSummaryExpanded ? 'mdi:chevron-down' : 'mdi:chevron-up'}
+            className="h-5 w-5 text-gray-400"
+          />
+        </button>
+
+        {/* Expandable content */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            isSummaryExpanded ? 'max-h-[70vh] overflow-y-auto' : 'max-h-0'
+          }`}
+        >
+          <div className="px-4 pb-2">
+            <h2 className="text-base font-bold text-[#1a365d] mb-3">Récapitulatif</h2>
+
+            {/* Products list */}
+            <div className="space-y-3 mb-4">
+              {cartItems.map((item) => {
+                const product = item.products;
+                const price = calculateLocalPrice(item, selectedDuration);
+                const mainImage = product?.product_images?.sort((a, b) => a.order_index - b.order_index)[0]?.image_url;
+
+                return (
+                  <div key={item.id} className="flex gap-3 pb-3 border-b border-gray-100">
+                    <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      {mainImage ? (
+                        <Image
+                          src={mainImage}
+                          alt={product?.name || 'Produit'}
+                          fill
+                          className="object-contain p-1"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Icon icon="mdi:image-off" className="h-5 w-5 text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 line-clamp-1">{product?.name}</p>
+                      <p className="text-sm font-semibold text-marlon-green">
+                        {price.monthlyTTC.toFixed(2)} € TTC<span className="font-normal text-gray-500">/mois</span>
+                      </p>
+                    </div>
+                    <span className="text-sm text-gray-500">x{item.quantity}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Duration selector */}
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+              <span className="text-sm font-medium text-[#1a365d]">Mensualités :</span>
+              <select
+                value={selectedDuration}
+                onChange={(e) => setSelectedDuration(Number(e.target.value))}
+                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-marlon-green"
+              >
+                {DURATION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Summary details */}
+            <div className="space-y-1.5 text-sm mb-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Nombre d&apos;articles</span>
+                <span className="text-gray-700">{totals.itemCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Loyer HT</span>
+                <span className="text-gray-700">{totals.monthlyHT.toFixed(2)} € / mois</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Livraison</span>
+                <span className="text-marlon-green font-medium">Offerte</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Always visible: Total + CTA */}
+        <div className="px-4 pb-4 pt-2">
+          <div className="flex justify-between items-center mb-3">
+            <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
+            <span className="font-bold text-[#1a365d]">{totals.monthlyTTC.toFixed(2)} € / mois</span>
+          </div>
+          <button
+            onClick={currentStep === 3 ? handleSubmitOrder : handleNextStep}
+            disabled={submitting}
+            className="w-full py-3 bg-marlon-green text-white font-semibold rounded-lg hover:bg-marlon-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                Traitement...
+              </span>
+            ) : currentStep === 3 ? (
+              'Valider la commande'
+            ) : (
+              'Continuer'
+            )}
+          </button>
         </div>
       </div>
     </div>
