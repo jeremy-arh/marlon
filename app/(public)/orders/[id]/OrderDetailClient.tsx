@@ -219,7 +219,6 @@ export default function OrderDetailClient({
             <div className="space-y-4">
               {order.order_items?.map((item) => {
                 const image = getProductImage(item);
-                const sellingPrice = item.purchase_price_ht * (1 + item.margin_percent / 100);
 
                 return (
                   <div
@@ -243,7 +242,6 @@ export default function OrderDetailClient({
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-500">x{item.quantity}</p>
-                      <p className="font-medium text-gray-900">{sellingPrice.toFixed(2)} € HT</p>
                     </div>
                   </div>
                 );
