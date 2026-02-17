@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { matchesSearch } from '@/lib/utils/search';
 import Link from 'next/link';
 import Image from 'next/image';
 import PageHeader from '@/components/PageHeader';
@@ -101,12 +102,11 @@ export default function CategoryProductsClient({
   // Filter products then sort by price (cheapest first)
   const filteredProducts = products
     .filter((product) => {
-    // Search filter
+    // Search filter (accent-insensitive)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const matchesName = product.name.toLowerCase().includes(query);
-      const matchesRef = product.reference?.toLowerCase().includes(query);
-      const matchesBrand = product.brands?.name?.toLowerCase().includes(query);
+      const matchesName = matchesSearch(product.name, searchQuery);
+      const matchesRef = matchesSearch(product.reference, searchQuery);
+      const matchesBrand = matchesSearch(product.brands?.name, searchQuery);
       if (!matchesName && !matchesRef && !matchesBrand) {
         return false;
       }

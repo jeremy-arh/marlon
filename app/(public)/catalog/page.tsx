@@ -135,6 +135,26 @@ export default async function CatalogPage() {
     .is('parent_product_id', null)
     .order('name');
 
+  // Fetch all furniture products for search
+  const { data: furnitureProducts } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      slug,
+      reference,
+      description,
+      purchase_price_ht,
+      marlon_margin_percent,
+      brand_id,
+      product_type,
+      brands(id, name),
+      product_images(image_url, order_index)
+    `)
+    .eq('product_type', 'furniture')
+    .is('parent_product_id', null)
+    .order('name');
+
   // Get all leaser coefficients for price calculations
   const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
@@ -228,6 +248,21 @@ export default async function CatalogPage() {
     productCheapestSlug[product.id] = product.slug;
   }
 
+  // Calculate prices for furniture products
+  for (const product of (furnitureProducts || [])) {
+    const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
+    const coef = findCoefficient(priceHT);
+    const monthlyPrice = priceHT * coef;
+    const image = product.product_images?.length > 0
+      ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
+      : null;
+    
+    productCheapestPrices[product.id] = monthlyPrice;
+    productCheapestImages[product.id] = image;
+    productCheapestId[product.id] = product.id;
+    productCheapestSlug[product.id] = product.slug;
+  }
+
   return (
     <Suspense fallback={<div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" /></div>}>
       <CatalogClient 
@@ -240,6 +275,7 @@ export default async function CatalogPage() {
         itCategoryProducts={itCategoryProducts}
         allItProducts={allItProducts}
         allMedicalProducts={medicalProducts || []}
+        allFurnitureProducts={furnitureProducts || []}
         coefficient={coefficient}
         productCheapestPrices={productCheapestPrices}
         productCheapestImages={productCheapestImages}

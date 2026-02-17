@@ -22,11 +22,13 @@ function SearchableSelect({
   value,
   onChange,
   placeholder,
+  className,
 }: {
   options: SelectOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -67,7 +69,7 @@ function SearchableSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${className || ''}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-1.5 text-sm border rounded-md px-3 py-2 bg-white focus:outline-none cursor-pointer min-w-[140px] text-left ${
@@ -278,13 +280,16 @@ const PRODUCT_TYPES = [
 ];
 
 const MARGIN_OPTIONS = [5, 10, 15, 17, 20, 25, 30, 35, 40, 45, 50];
+const ITEMS_PER_PAGE = 30;
 
 export default function ProductsClient({ initialProducts, durations, leasers, categories }: ProductsClientProps) {
   const router = useRouter();
-  const [products, setProducts] = useState<any[]>(initialProducts);
+  const [products, setProducts] = useState<any[]>(initialProducts ?? []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [pricesLoaded, setPricesLoaded] = useState<Set<string>>(new Set());
+  const [loadingPrices, setLoadingPrices] = useState<Set<string>>(new Set());
   const [savingFields, setSavingFields] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -294,6 +299,7 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
   const [filterMargin, setFilterMargin] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Extraire les marques uniques depuis les produits
   const uniqueBrands = useMemo(() => {
@@ -373,16 +379,41 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
     router.refresh();
   };
 
-  const toggleExpand = (productId: string) => {
-    setExpandedProducts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
+  const toggleExpand = async (productId: string) => {
+    const isCurrentlyExpanded = expandedProducts.has(productId);
+    if (isCurrentlyExpanded) {
+      setExpandedProducts(prev => {
+        const newSet = new Set(prev);
         newSet.delete(productId);
-      } else {
-        newSet.add(productId);
+        return newSet;
+      });
+      return;
+    }
+
+    setExpandedProducts(prev => new Set(prev).add(productId));
+
+    // Charger les prix à la demande si pas encore chargés
+    if (!pricesLoaded.has(productId) && !loadingPrices.has(productId)) {
+      setLoadingPrices(prev => new Set(prev).add(productId));
+      try {
+        const res = await fetch(`/api/admin/products/${productId}/prices`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          setProducts(prev => prev.map(p =>
+            p.id === productId ? { ...p, pricesByDuration: data.data } : p
+          ));
+          setPricesLoaded(prev => new Set(prev).add(productId));
+        }
+      } catch (err) {
+        console.error('Erreur chargement prix:', err);
+      } finally {
+        setLoadingPrices(prev => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
       }
-      return newSet;
-    });
+    }
   };
 
   // ---- Mise à jour rapide inline via PATCH ----
@@ -540,6 +571,19 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
     });
   }, [products, searchQuery, filterType, filterLeaser, filterMargin, filterCategory, filterBrand]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
+  const displayPage = Math.min(Math.max(1, currentPage), totalPages);
+  const paginatedProducts = useMemo(() => {
+    const start = (displayPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, displayPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterType, filterLeaser, filterMargin, filterCategory, filterBrand]);
+
   return (
     <>
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -647,6 +691,7 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
 
         <span className="text-xs text-gray-400 ml-auto">
           {filteredProducts.length} / {products.length} produits
+          {totalPages > 1 && ` • Page ${displayPage}/${totalPages}`}
         </span>
       </div>
 
@@ -670,8 +715,8 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((product: any) => {
+              {paginatedProducts.length > 0 ? (
+                paginatedProducts.map((product: any) => {
                   const firstImage = product.product_images && product.product_images.length > 0
                     ? product.product_images.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))[0]?.image_url
                     : null;
@@ -818,33 +863,40 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
                               {/* Prix par durée de leasing */}
                               <div className="bg-white rounded-md border border-gray-200 p-4">
                                 <h4 className="text-sm font-semibold text-black mb-3">Prix par durée de leasing</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                  {durations.map((duration) => {
-                                    const price = product.pricesByDuration?.[duration.months];
-                                    return (
-                                      <div
-                                        key={duration.id}
-                                        className="rounded-md border border-gray-200 bg-gray-50 p-3"
-                                      >
-                                        <div className="text-xs font-medium text-gray-500 mb-2">
-                                          {duration.months} mois
-                                        </div>
-                                        {price ? (
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-semibold text-black">
-                                              {price.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT/mois
-                                            </div>
-                                            <div className="text-xs text-gray-600">
-                                              Total: {price.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT
-                                            </div>
+                                {loadingPrices.has(product.id) ? (
+                                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
+                                    Chargement des prix...
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {durations.map((duration) => {
+                                      const price = product.pricesByDuration?.[duration.months];
+                                      return (
+                                        <div
+                                          key={duration.id}
+                                          className="rounded-md border border-gray-200 bg-gray-50 p-3"
+                                        >
+                                          <div className="text-xs font-medium text-gray-500 mb-2">
+                                            {duration.months} mois
                                           </div>
-                                        ) : (
-                                          <div className="text-sm text-gray-400">Non disponible</div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                          {price ? (
+                                            <div className="space-y-1">
+                                              <div className="text-sm font-semibold text-black">
+                                                {price.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT/mois
+                                              </div>
+                                              <div className="text-xs text-gray-600">
+                                                Total: {price.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div className="text-sm text-gray-400">Non disponible</div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Variantes */}
@@ -881,6 +933,34 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Affichage {(displayPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(displayPage * ITEMS_PER_PAGE, filteredProducts.length)} sur {filteredProducts.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={displayPage <= 1}
+              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Icon icon="mdi:chevron-left" className="h-4 w-4 inline" /> Précédent
+            </button>
+            <span className="text-sm text-gray-600 px-2">
+              Page {displayPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={displayPage >= totalPages}
+              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Suivant <Icon icon="mdi:chevron-right" className="h-4 w-4 inline" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Side Modal */}
       <SideModal

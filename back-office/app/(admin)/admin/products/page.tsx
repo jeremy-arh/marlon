@@ -2,7 +2,6 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import ProductsClient from './ProductsClient';
-import { calculateProductPriceServer } from '@/lib/utils/pricing-server';
 
 export default async function ProductsPage() {
   const supabase = await createClient();
@@ -74,39 +73,12 @@ export default async function ProductsPage() {
     childCounts[c.parent_product_id] = (childCounts[c.parent_product_id] || 0) + 1;
   });
 
-  // Calculate prices for each product and duration
-  let enrichedProducts = productsData || [];
-  if (productsData && productsData.length > 0) {
-    enrichedProducts = await Promise.all(
-      productsData.map(async (product: any) => {
-        const pricesByDuration: Record<number, { monthly: number; total: number }> = {};
-        
-        if (product.default_leaser_id && durations) {
-          for (const duration of durations) {
-            const priceCalc = await calculateProductPriceServer(
-              parseFloat(product.purchase_price_ht.toString()),
-              parseFloat(product.marlon_margin_percent.toString()),
-              product.default_leaser_id,
-              duration.months
-            );
-            
-            if (priceCalc) {
-              pricesByDuration[duration.months] = {
-                monthly: priceCalc.monthlyPrice,
-                total: priceCalc.totalPrice,
-              };
-            }
-          }
-        }
-
-        return {
-          ...product,
-          pricesByDuration,
-          variantCount: childCounts[product.id] || 0,
-        };
-      })
-    );
-  }
+  // Enrich with variant count only (price calculation moved to client/on-demand to avoid timeout)
+  const enrichedProducts = (productsData || []).map((product: any) => ({
+    ...product,
+    pricesByDuration: {} as Record<number, { monthly: number; total: number }>,
+    variantCount: childCounts[product.id] || 0,
+  }));
 
   return (
     <div className="container mx-auto bg-gray-50 px-4 py-6 lg:px-6 lg:py-8">

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import PageHeader from '@/components/PageHeader';
 import Icon from '@/components/Icon';
+import { matchesSearch } from '@/lib/utils/search';
 
 interface Category {
   id: string;
@@ -50,6 +51,7 @@ interface CatalogClientProps {
   itCategoryProducts: Record<string, ItProduct[]>;
   allItProducts: ItProduct[];
   allMedicalProducts: ItProduct[];
+  allFurnitureProducts?: ItProduct[];
   coefficient: number;
   productCheapestPrices: Record<string, number>;
   productCheapestImages: Record<string, string | null>;
@@ -67,6 +69,7 @@ export default function CatalogClient({
   itCategoryProducts,
   allItProducts,
   allMedicalProducts,
+  allFurnitureProducts = [],
   coefficient,
   productCheapestPrices,
   productCheapestImages,
@@ -118,14 +121,14 @@ export default function CatalogClient({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter specialties based on search
+  // Filter specialties based on search (accent-insensitive)
   const filteredSpecialties = specialties.filter(s => 
-    s.name.toLowerCase().includes(specialtySearch.toLowerCase())
+    matchesSearch(s.name, specialtySearch)
   );
 
-  // Filter IT categories based on search
+  // Filter IT categories based on search (accent-insensitive)
   const filteredItCategories = itCategories.filter(c => 
-    c.name.toLowerCase().includes(itCategorySearch.toLowerCase())
+    matchesSearch(c.name, itCategorySearch)
   );
 
   // Filter categories based on active filters (no search filter on categories)
@@ -204,17 +207,17 @@ export default function CatalogClient({
   // Should we show IT products directly?
   const showItProducts = activeProductType === 'it_equipment';
 
-  // If there's a search query, combine all products (medical + IT) and filter them
+  // If there's a search query, combine all products (medical + IT + furniture) and filter them
   let searchResults: ItProduct[] = [];
   if (searchQuery.trim()) {
-    const query = searchQuery.toLowerCase();
     // Combine all products
-    const allProducts = [...allMedicalProducts, ...allItProducts];
-    // Filter by search query
+    const allProducts = [...allMedicalProducts, ...allItProducts, ...allFurnitureProducts];
+    // Filter by search query (accent-insensitive)
     searchResults = allProducts.filter(product => 
-      product.name.toLowerCase().includes(query) ||
-      product.reference?.toLowerCase().includes(query) ||
-      product.description?.toLowerCase().includes(query)
+      matchesSearch(product.name, searchQuery) ||
+      matchesSearch(product.reference, searchQuery) ||
+      matchesSearch(product.description, searchQuery) ||
+      matchesSearch(product.brands?.name, searchQuery)
     );
   }
 
