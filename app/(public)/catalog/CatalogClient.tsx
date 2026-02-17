@@ -10,6 +10,7 @@ import Icon from '@/components/Icon';
 interface Category {
   id: string;
   name: string;
+  slug?: string;
   description?: string;
   image_url?: string;
   product_type?: string;
@@ -20,14 +21,16 @@ interface Specialty {
   name: string;
 }
 
-interface ItType {
+interface ItCategory {
   id: string;
   name: string;
+  slug?: string;
 }
 
 interface ItProduct {
   id: string;
   name: string;
+  slug?: string;
   reference?: string;
   description?: string;
   purchase_price_ht: number;
@@ -43,14 +46,15 @@ interface CatalogClientProps {
   categorySpecialties: Record<string, string[]>;
   categoryItTypes: Record<string, string[]>;
   specialties: Specialty[];
-  itTypes: ItType[];
-  itTypeProducts: Record<string, ItProduct[]>;
+  itCategories: ItCategory[];
+  itCategoryProducts: Record<string, ItProduct[]>;
   allItProducts: ItProduct[];
   allMedicalProducts: ItProduct[];
   coefficient: number;
   productCheapestPrices: Record<string, number>;
   productCheapestImages: Record<string, string | null>;
   productCheapestId: Record<string, string>;
+  productCheapestSlug: Record<string, string>;
 }
 
 export default function CatalogClient({ 
@@ -59,25 +63,26 @@ export default function CatalogClient({
   categorySpecialties,
   categoryItTypes,
   specialties,
-  itTypes,
-  itTypeProducts,
+  itCategories,
+  itCategoryProducts,
   allItProducts,
   allMedicalProducts,
   coefficient,
   productCheapestPrices,
   productCheapestImages,
-  productCheapestId
+  productCheapestId,
+  productCheapestSlug
 }: CatalogClientProps) {
   const searchParams = useSearchParams();
   const urlType = searchParams.get('type');
   const urlSpecialty = searchParams.get('specialty');
-  const urlItType = searchParams.get('itType');
+  const urlItCategory = searchParams.get('itCategory');
   
   const [activeProductType, setActiveProductType] = useState<string | null>(urlType);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(urlSpecialty);
-  const [selectedItType, setSelectedItType] = useState<string | null>(urlItType);
+  const [selectedItCategory, setSelectedItCategory] = useState<string | null>(urlItCategory);
   const [specialtySearch, setSpecialtySearch] = useState('');
-  const [itTypeSearch, setItTypeSearch] = useState('');
+  const [itCategorySearch, setItCategorySearch] = useState('');
   const [isSpecialtyDropdownOpen, setIsSpecialtyDropdownOpen] = useState(false);
   const [isItTypeDropdownOpen, setIsItTypeDropdownOpen] = useState(false);
   const specialtyDropdownRef = useRef<HTMLDivElement>(null);
@@ -93,11 +98,11 @@ export default function CatalogClient({
       setSelectedSpecialty(urlSpecialty);
       setActiveProductType('medical_equipment');
     }
-    if (urlItType) {
-      setSelectedItType(urlItType);
+    if (urlItCategory) {
+      setSelectedItCategory(urlItCategory);
       setActiveProductType('it_equipment');
     }
-  }, [urlType, urlSpecialty, urlItType]);
+  }, [urlType, urlSpecialty, urlItCategory]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -118,9 +123,9 @@ export default function CatalogClient({
     s.name.toLowerCase().includes(specialtySearch.toLowerCase())
   );
 
-  // Filter IT types based on search
-  const filteredItTypes = itTypes.filter(t => 
-    t.name.toLowerCase().includes(itTypeSearch.toLowerCase())
+  // Filter IT categories based on search
+  const filteredItCategories = itCategories.filter(c => 
+    c.name.toLowerCase().includes(itCategorySearch.toLowerCase())
   );
 
   // Filter categories based on active filters (no search filter on categories)
@@ -132,11 +137,9 @@ export default function CatalogClient({
       return catSpecialties.includes(selectedSpecialty);
     }
 
-    // If IT equipment is selected and an IT type is selected
-    if (activeProductType === 'it_equipment' && selectedItType) {
-      if (category.product_type !== 'it_equipment') return false;
-      const catItTypes = categoryItTypes[category.id] || [];
-      return catItTypes.includes(selectedItType);
+    // If IT equipment is selected and an IT category is selected
+    if (activeProductType === 'it_equipment' && selectedItCategory) {
+      return category.id === selectedItCategory;
     }
     
     // If a product type is selected, filter by category's own product_type
@@ -150,18 +153,18 @@ export default function CatalogClient({
 
   const handleSpecialtySelect = (specialtyId: string | null) => {
     setSelectedSpecialty(specialtyId);
-    setSelectedItType(null);
+    setSelectedItCategory(null);
     setActiveProductType(specialtyId ? 'medical_equipment' : null);
     setIsSpecialtyDropdownOpen(false);
     setSpecialtySearch('');
   };
 
-  const handleItTypeSelect = (itTypeId: string | null) => {
-    setSelectedItType(itTypeId);
+  const handleItCategorySelect = (categoryId: string | null) => {
+    setSelectedItCategory(categoryId);
     setSelectedSpecialty(null);
     setActiveProductType('it_equipment');
     setIsItTypeDropdownOpen(false);
-    setItTypeSearch('');
+    setItCategorySearch('');
   };
 
   const getSpecialtyLabel = () => {
@@ -171,9 +174,9 @@ export default function CatalogClient({
     return 'Matériel médical';
   };
 
-  const getItTypeLabel = () => {
-    if (selectedItType) {
-      return itTypes.find(t => t.id === selectedItType)?.name || 'Informatique';
+  const getItCategoryLabel = () => {
+    if (selectedItCategory) {
+      return itCategories.find(c => c.id === selectedItCategory)?.name || 'Informatique';
     }
     return 'Informatique';
   };
@@ -193,9 +196,9 @@ export default function CatalogClient({
     return null;
   };
 
-  // Get the IT products to display based on selected IT type
-  const displayItProducts = selectedItType 
-    ? (itTypeProducts[selectedItType] || [])
+  // Get the IT products to display based on selected IT category
+  const displayItProducts = selectedItCategory 
+    ? (itCategoryProducts[selectedItCategory] || [])
     : (activeProductType === 'it_equipment' ? allItProducts : []);
 
   // Should we show IT products directly?
@@ -218,7 +221,7 @@ export default function CatalogClient({
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Count active filters for badge
-  const activeFilterCount = [activeProductType, selectedSpecialty, selectedItType].filter(Boolean).length;
+  const activeFilterCount = [activeProductType, selectedSpecialty, selectedItCategory].filter(Boolean).length;
 
   // Lock body scroll when filter sheet is open
   useEffect(() => {
@@ -245,7 +248,7 @@ export default function CatalogClient({
               setIsItTypeDropdownOpen(false);
             }
           }}
-          className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : 'min-w-[180px]'} ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full justify-center' : 'min-w-[180px] justify-between'} ${
             activeProductType === 'medical_equipment'
               ? 'bg-marlon-green text-white'
               : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -294,10 +297,10 @@ export default function CatalogClient({
         onClick={() => {
           setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
           setSelectedSpecialty(null);
-          setSelectedItType(null);
+          setSelectedItCategory(null);
           if (isMobile) setIsFilterSheetOpen(false);
         }}
-        className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : ''} ${
+        className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full text-center' : ''} ${
           activeProductType === 'furniture'
             ? 'bg-marlon-green text-white'
             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -313,13 +316,13 @@ export default function CatalogClient({
             setIsItTypeDropdownOpen(!isItTypeDropdownOpen);
             setIsSpecialtyDropdownOpen(false);
           }}
-          className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full' : 'min-w-[160px]'} ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full justify-center' : 'min-w-[160px] justify-between'} ${
             activeProductType === 'it_equipment'
               ? 'bg-marlon-green text-white'
               : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}
         >
-          <span>{getItTypeLabel()}</span>
+          <span>{getItCategoryLabel()}</span>
           <Icon icon="mdi:chevron-down" className="h-4 w-4" />
         </button>
         
@@ -328,28 +331,28 @@ export default function CatalogClient({
             <div className="p-2 border-b border-gray-200">
               <input
                 type="text"
-                value={itTypeSearch}
-                onChange={(e) => setItTypeSearch(e.target.value)}
-                placeholder="Rechercher un type..."
+                value={itCategorySearch}
+                onChange={(e) => setItCategorySearch(e.target.value)}
+                placeholder="Rechercher une catégorie..."
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
               />
             </div>
             <div className="max-h-60 overflow-y-auto">
               <button
-                onClick={() => { handleItTypeSelect(null); if (isMobile) setIsFilterSheetOpen(false); }}
+                onClick={() => { handleItCategorySelect(null); if (isMobile) setIsFilterSheetOpen(false); }}
                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-gray-600"
               >
                 Tous les équipements IT
               </button>
-              {filteredItTypes.map((itType) => (
+              {filteredItCategories.map((category) => (
                 <button
-                  key={itType.id}
-                  onClick={() => { handleItTypeSelect(itType.id); if (isMobile) setIsFilterSheetOpen(false); }}
+                  key={category.id}
+                  onClick={() => { handleItCategorySelect(category.id); if (isMobile) setIsFilterSheetOpen(false); }}
                   className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
-                    selectedItType === itType.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
+                    selectedItCategory === category.id ? 'bg-marlon-green/10 text-marlon-green' : 'text-gray-700'
                   }`}
                 >
-                  {itType.name}
+                  {category.name}
                 </button>
               ))}
             </div>
@@ -439,7 +442,7 @@ export default function CatalogClient({
                   onClick={() => {
                     setActiveProductType(null);
                     setSelectedSpecialty(null);
-                    setSelectedItType(null);
+                    setSelectedItCategory(null);
                     setIsFilterSheetOpen(false);
                     setIsSpecialtyDropdownOpen(false);
                     setIsItTypeDropdownOpen(false);
@@ -456,19 +459,25 @@ export default function CatalogClient({
 
       {/* Content: Search results, IT Products grid or Categories grid */}
       {searchQuery.trim() ? (
-        // Show search results (all products)
+        // Show search results (all products) - triés du moins cher au plus cher
         searchResults.length > 0 ? (
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
-            {searchResults.map((product) => {
+            {[...searchResults]
+              .sort((a, b) => {
+                const priceA = productCheapestPrices[a.id] ?? calculateMonthlyPrice(a);
+                const priceB = productCheapestPrices[b.id] ?? calculateMonthlyPrice(b);
+                return priceA - priceB;
+              })
+              .map((product) => {
               const cheapestImage = productCheapestImages[product.id];
               const imageUrl = cheapestImage || getProductImage(product);
               const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
-              const targetProductId = productCheapestId[product.id] || product.id;
+              const targetSlug = productCheapestSlug[product.id] || product.slug || product.id;
 
               return (
                 <Link
                   key={product.id}
-                  href={`/catalog/product/${targetProductId}`}
+                  href={`/catalog/product/${targetSlug}`}
                   className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
@@ -484,7 +493,7 @@ export default function CatalogClient({
                     )}
                   </div>
                   <div className="p-1.5 flex-1 flex flex-col">
-                    <h3 className="text-[10px] lg:text-[11px] font-medium text-[#1a365d] text-center leading-tight line-clamp-2 mb-1">
+                    <h3 className="text-[10px] lg:text-[11px] font-medium text-gray-900 text-center leading-tight line-clamp-2 mb-1">
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
@@ -505,22 +514,25 @@ export default function CatalogClient({
           </div>
         )
       ) : showItProducts ? (
-        // Show IT products directly
+        // Show IT products directly - triés du moins cher au plus cher
         displayItProducts.length > 0 ? (
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
-            {displayItProducts.map((product) => {
-              // Utiliser l'image de la variante la moins chère, sinon celle du produit principal
+            {[...displayItProducts]
+              .sort((a, b) => {
+                const priceA = productCheapestPrices[a.id] ?? calculateMonthlyPrice(a);
+                const priceB = productCheapestPrices[b.id] ?? calculateMonthlyPrice(b);
+                return priceA - priceB;
+              })
+              .map((product) => {
               const cheapestImage = productCheapestImages[product.id];
               const imageUrl = cheapestImage || getProductImage(product);
-              // Utiliser le prix le moins cher pré-calculé côté serveur, sinon fallback sur le prix du produit principal
               const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
-              // Lien vers la variante la moins chère (ou le produit principal si c'est le moins cher)
-              const targetProductId = productCheapestId[product.id] || product.id;
+              const targetSlug = productCheapestSlug[product.id] || product.slug || product.id;
 
               return (
                 <Link
                   key={product.id}
-                  href={`/catalog/product/${targetProductId}`}
+                  href={`/catalog/product/${targetSlug}`}
                   className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
@@ -536,7 +548,7 @@ export default function CatalogClient({
                     )}
                   </div>
                   <div className="p-1.5 flex-1 flex flex-col">
-                    <h3 className="text-[10px] lg:text-[11px] font-medium text-[#1a365d] text-center leading-tight line-clamp-2 mb-1">
+                    <h3 className="text-[10px] lg:text-[11px] font-medium text-gray-900 text-center leading-tight line-clamp-2 mb-1">
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
@@ -561,7 +573,7 @@ export default function CatalogClient({
           {filteredCategories.map((category) => (
             <Link
               key={category.id}
-              href={`/catalog/category/${category.id}`}
+              href={`/catalog/category/${category.slug || category.id}`}
               className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
             >
               <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">

@@ -46,12 +46,18 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
   const [leasers, setLeasers] = useState<any[]>([]);
   const [durations, setDurations] = useState<any[]>([]);
   const [updatingOrders, setUpdatingOrders] = useState<Set<string>>(new Set());
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [leaserFilter, setLeaserFilter] = useState<string>('');
+
+  // Sync orders when initialOrders changes (e.g. after router.refresh() post-create)
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
 
   useEffect(() => {
     // Load leasers
@@ -274,6 +280,24 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
     router.refresh();
   };
 
+  const handleDeleteOrder = async (e: React.MouseEvent, order: any) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la commande #${order.id.slice(0, 8)} ? Cette action est irréversible.`)) return;
+    setDeletingOrderId(order.id);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+      setOrders(prev => prev.filter(o => o.id !== order.id));
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
   // Calculate stats
   const totalOrders = filteredOrders?.length || 0;
   const totalRevenue = filteredOrders?.reduce((sum, order) => sum + parseFloat(order.total_amount_ht.toString()), 0) || 0;
@@ -298,7 +322,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
     });
   };
 
-  const OrderCard = ({ order }: { order: any }) => {
+  const OrderCard = ({ order, onDelete }: { order: any; onDelete: (e: React.MouseEvent, order: any) => void }) => {
     const equipmentCount = order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
     const monthlyPrice = order.total_amount_ht / order.leasing_duration_months;
     const purchasePriceTTC = order.order_items?.reduce((sum: number, item: any) => {
@@ -345,13 +369,25 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
             <span className="font-medium text-black">{order.leasing_duration_months} mois</span>
           </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="flex justify-between text-xs text-gray-500">
+        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+          <div className="text-xs text-gray-500">
             <span>Créé: {formatDate(order.created_at)}</span>
             {order.updated_at !== order.created_at && (
-              <span>MAJ: {formatDate(order.updated_at)}</span>
+              <span className="ml-2">MAJ: {formatDate(order.updated_at)}</span>
             )}
           </div>
+          <button
+            onClick={(e) => onDelete(e, order)}
+            disabled={deletingOrderId === order.id}
+            className="text-red-600 hover:text-red-700 p-1 disabled:opacity-50"
+            title="Supprimer"
+          >
+            {deletingOrderId === order.id ? (
+              <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Icon icon="meteor-icons:trash-can" className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
     );
@@ -501,6 +537,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leaser</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Créé le</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dernière MAJ</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -571,12 +608,26 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(order.created_at)}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(order.updated_at)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={(e) => handleDeleteOrder(e, order)}
+                              disabled={deletingOrderId === order.id}
+                              className="text-red-600 hover:text-red-700 p-1 disabled:opacity-50"
+                              title="Supprimer"
+                            >
+                              {deletingOrderId === order.id ? (
+                                <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                              ) : (
+                                <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
+                              )}
+                            </button>
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
+                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                         Aucune commande trouvée
                       </td>
                     </tr>
@@ -602,7 +653,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                     </div>
                     <div className="space-y-3 min-h-[400px]">
                       {statusOrders.map((order: any) => (
-                        <OrderCard key={order.id} order={order} />
+                        <OrderCard key={order.id} order={order} onDelete={handleDeleteOrder} />
                       ))}
                       {statusOrders.length === 0 && (
                         <div className="text-center text-sm text-gray-400 py-8">

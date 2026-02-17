@@ -40,13 +40,16 @@ const DEFAULT_COEFFICIENTS: Record<number, number> = {
   36: 0.038,
   48: 0.032,
   60: 0.028,
+  72: 0.026,
+  84: 0.024,
 };
 
 const DURATION_OPTIONS = [
-  { value: 24, label: '24 mois' },
   { value: 36, label: '36 mois' },
   { value: 48, label: '48 mois' },
   { value: 60, label: '60 mois' },
+  { value: 72, label: '72 mois' },
+  { value: 84, label: '84 mois' },
 ];
 
 // Calculate price locally
@@ -250,7 +253,6 @@ export default function CheckoutPage() {
     // Accept either new file upload OR existing document URL
     if (!documents.identity_front && !existingDocuments.identity_front_url) errors.push('Le recto de la pièce d\'identité est obligatoire');
     if (!documents.identity_back && !existingDocuments.identity_back_url) errors.push('Le verso de la pièce d\'identité est obligatoire');
-    if (!documents.tax_liasse && !existingDocuments.tax_liasse_url) errors.push('La liasse fiscale ou bilan comptable est obligatoire');
     return errors;
   };
 
@@ -1228,7 +1230,7 @@ export default function CheckoutPage() {
                     <div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
                         <Icon icon="mdi:file-document" className="h-5 w-5 text-blue-500" />
-                        Liasse fiscale 2035 ou dernier bilan comptable <span className="text-red-500">*</span>
+                        Liasse fiscale 2035 ou dernier bilan comptable <span className="text-gray-400">(optionnel)</span>
                       </label>
                       <input
                         type="file"
@@ -1239,9 +1241,7 @@ export default function CheckoutPage() {
                       />
                       <label
                         htmlFor="tax_liasse"
-                        className={`block px-3 py-2 border border-dashed rounded-lg text-center cursor-pointer hover:border-marlon-green hover:bg-gray-50 ${
-                          !documents.tax_liasse && !existingDocuments.tax_liasse_url && validationErrors.length > 0 ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className="block px-3 py-2 border border-dashed border-gray-300 rounded-lg text-center cursor-pointer hover:border-marlon-green hover:bg-gray-50"
                       >
                         {documents.tax_liasse ? (
                           <span className="text-marlon-green flex items-center justify-center gap-2">
@@ -1254,7 +1254,7 @@ export default function CheckoutPage() {
                             Document existant ✓ (cliquez pour remplacer)
                           </span>
                         ) : (
-                          'Cliquez pour téléverser *'
+                          'Cliquez pour téléverser (optionnel)'
                         )}
                       </label>
                     </div>
@@ -1262,7 +1262,7 @@ export default function CheckoutPage() {
                     <div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
                         <Icon icon="mdi:file-chart" className="h-5 w-5 text-blue-500" />
-                        Business plan <span className="text-gray-400">(si lancement du cabinet)</span>
+                        Business plan <span className="text-gray-400">(optionnel)</span>
                       </label>
                       <input
                         type="file"

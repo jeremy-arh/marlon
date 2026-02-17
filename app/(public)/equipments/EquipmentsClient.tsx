@@ -341,13 +341,15 @@ export default function EquipmentsClient({ initialEquipments, initialEmployees, 
           <p className="text-gray-500 mb-6">
             Vous n'avez pas encore d'équipements en leasing.
           </p>
-          <Link
-            href="/catalog"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 transition-colors"
-          >
-            <Icon icon="mdi:shopping" className="h-5 w-5" />
-            Découvrir le catalogue
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/catalog"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 transition-colors"
+            >
+              <Icon icon="mdi:shopping" className="h-5 w-5" />
+              Découvrir le catalogue
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -362,7 +364,7 @@ export default function EquipmentsClient({ initialEquipments, initialEmployees, 
               >
                 {/* Image - clickable */}
                 <Link href={`/equipments/${equipment.id}`} className="block">
-                  <div className="relative h-40 bg-gray-50 border-b border-gray-100">
+                  <div className="relative h-40 bg-white border-b border-gray-100">
                     {image ? (
                       <Image
                         src={image}

@@ -230,7 +230,7 @@ export default function ClientSidebar() {
           <img
             src={LOGO_URL}
             alt="MARLON"
-            className="h-8 w-auto"
+            className="h-10 w-auto"
           />
         </div>
       </div>

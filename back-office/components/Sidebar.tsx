@@ -53,11 +53,11 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col border-r border-gray-200 bg-white z-10 overflow-hidden">
       <div className="p-6 flex-shrink-0">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex items-center justify-center gap-2">
           <img
             src={LOGO_URL}
             alt="MARLON"
-            className="h-6 w-auto"
+            className="h-10 w-auto"
           />
         </div>
       </div>

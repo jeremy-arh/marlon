@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase/client';
 interface Product {
   id: string;
   name: string;
+  slug?: string;
   reference?: string;
   description?: string;
   technical_info?: string;
@@ -26,11 +27,13 @@ interface Product {
 interface Category {
   id: string;
   name: string;
+  slug?: string;
 }
 
 interface RelatedProduct {
   id: string;
   name: string;
+  slug?: string;
   purchase_price_ht: number;
   marlon_margin_percent: number;
   product_images?: { image_url: string; order_index: number }[];
@@ -39,6 +42,7 @@ interface RelatedProduct {
 interface SiblingProduct {
   id: string;
   name: string;
+  slug?: string;
   purchase_price_ht: number;
   marlon_margin_percent: number;
   variant_data?: Record<string, string>;
@@ -60,8 +64,7 @@ interface ProductDetailClientProps {
   productType: string | null;
   specialtyId: string | null;
   specialtyName: string | null;
-  itTypeId: string | null;
-  itTypeName: string | null;
+  itCategoryId: string | null;
   coefficient: number;
   currentMonthlyPrice: number;
   cheapestMonthlyPrice: number | null;
@@ -90,8 +93,7 @@ export default function ProductDetailClient({
   productType,
   specialtyId,
   specialtyName,
-  itTypeId,
-  itTypeName,
+  itCategoryId,
   coefficient,
   currentMonthlyPrice,
   cheapestMonthlyPrice,
@@ -163,7 +165,7 @@ export default function ProductDetailClient({
 
     if (matchingSibling && matchingSibling.id !== product.id) {
       // Navigate to the matching sibling's product page
-      router.push(`/catalog/product/${matchingSibling.id}`);
+      router.push(`/catalog/product/${matchingSibling.slug || matchingSibling.id}`);
     }
     // If no match found, do nothing (stay on current page)
   };
@@ -188,7 +190,7 @@ export default function ProductDetailClient({
       
       if (!user) {
         setAddingToCart(false);
-        router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.id}`)}`);
+        router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.slug || product.id}`)}`);
         return;
       }
 
@@ -208,7 +210,7 @@ export default function ProductDetailClient({
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         if (response.status === 401) {
-          router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.id}`)}`);
+          router.push(`/login?redirect=${encodeURIComponent(`/catalog/product/${product.slug || product.id}`)}`);
           return;
         }
         throw new Error(data.error || 'Erreur lors de l\'ajout au panier');
@@ -268,10 +270,10 @@ export default function ProductDetailClient({
         {productType && (
           <>
             <Link 
-              href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itTypeId ? `&itType=${itTypeId}` : ''}`}
+              href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itCategoryId ? `&itCategory=${itCategoryId}` : ''}`}
               className="text-gray-500 hover:text-marlon-green transition-colors hidden sm:inline"
             >
-              {specialtyName || itTypeName || getProductTypeLabel(productType)}
+              {specialtyName || getProductTypeLabel(productType)}
             </Link>
             <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400 hidden sm:inline" />
           </>
@@ -279,7 +281,7 @@ export default function ProductDetailClient({
         {category && (
           <>
             <Link 
-              href={`/catalog/category/${category.id}`}
+              href={`/catalog/category/${category.slug || category.id}`}
               className="text-gray-500 hover:text-marlon-green transition-colors hidden sm:inline"
             >
               {category.name}
@@ -295,12 +297,12 @@ export default function ProductDetailClient({
         {/* Product name */}
         <h1 className="text-xl lg:text-2xl font-bold text-[#1a365d] mb-4 lg:mb-6">{product.name}</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] lg:grid-cols-[420px_1fr] gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-[540px_1fr] lg:grid-cols-[630px_1fr] gap-6 lg:gap-8">
           {/* Left: Product images */}
           <div>
             {images.length > 0 ? (
               <div className="space-y-3">
-                <div className="relative aspect-square w-full max-w-[320px] mx-auto md:max-w-none bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="relative aspect-square w-full max-w-[480px] mx-auto md:max-w-none bg-white rounded-lg border border-gray-200 overflow-hidden">
                   <Image
                     src={images[selectedImageIndex]?.image_url || images[0].image_url}
                     alt={product.name}
@@ -470,10 +472,10 @@ export default function ProductDetailClient({
                 return (
                   <Link
                     key={relatedProduct.id}
-                    href={`/catalog/product/${relatedProduct.id}`}
-                    className="flex-shrink-0 w-52 bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow flex items-center gap-3 p-3"
+                    href={`/catalog/product/${(relatedProduct as any).slug || relatedProduct.id}`}
+                    className="flex-shrink-0 w-72 bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow flex items-center gap-4 p-4"
                   >
-                    <div className="relative w-16 h-16 flex-shrink-0 bg-white flex items-center justify-center">
+                    <div className="relative w-24 h-24 flex-shrink-0 bg-white flex items-center justify-center">
                       {relatedImageUrl ? (
                         <Image
                           src={relatedImageUrl}
@@ -482,15 +484,15 @@ export default function ProductDetailClient({
                           className="object-contain"
                         />
                       ) : (
-                        <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
+                        <span className="text-gray-300 text-xs">Pas d&apos;image</span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-xs font-medium text-[#1a365d] leading-tight line-clamp-2 mb-1">
+                      <h3 className="text-sm font-medium text-[#1a365d] leading-tight line-clamp-2 mb-1">
                         {relatedProduct.name}
                       </h3>
-                      <p className="text-[10px] text-gray-500">à partir de</p>
-                      <p className="text-xs font-bold text-marlon-green">
+                      <p className="text-xs text-gray-500">à partir de</p>
+                      <p className="text-sm font-bold text-marlon-green">
                         {relatedPrice.toFixed(2)}€ HT <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>

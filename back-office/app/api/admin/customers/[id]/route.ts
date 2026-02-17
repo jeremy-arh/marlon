@@ -173,3 +173,76 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Vérifier que l'organisation existe
+    const { data: org, error: fetchError } = await serviceClient
+      .from('organizations')
+      .select('id, name')
+      .eq('id', params.id)
+      .single();
+
+    if (fetchError || !org) {
+      return NextResponse.json(
+        { error: 'Organisation non trouvée' },
+        { status: 404 }
+      );
+    }
+
+    // Supprimer d'abord toutes les commandes de cette organisation (NO ACTION sur FK)
+    const { error: ordersError } = await serviceClient
+      .from('orders')
+      .delete()
+      .eq('organization_id', params.id);
+
+    if (ordersError) {
+      return NextResponse.json(
+        { error: `Impossible de supprimer les commandes: ${ordersError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Supprimer l'organisation (CASCADE gère user_roles, user_permissions, etc.)
+    const { error: deleteError } = await serviceClient
+      .from('organizations')
+      .delete()
+      .eq('id', params.id);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: deleteError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || 'Une erreur est survenue' },
+      { status: 500 }
+    );
+  }
+}

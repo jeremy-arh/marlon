@@ -94,11 +94,11 @@ export async function PUT(
         quantity: item.quantity,
       }));
 
-    // Add the updated product with new quantity
+    // Add the updated product with new quantity - utiliser les valeurs de l'order_item (pas du produit)
     itemsForRecalc.push({
       productId,
-      purchasePrice: parseFloat(product.purchase_price_ht.toString()),
-      marginPercent: parseFloat(product.marlon_margin_percent.toString()),
+      purchasePrice: parseFloat(itemToUpdate.purchase_price_ht?.toString() || product.purchase_price_ht?.toString() || '0'),
+      marginPercent: parseFloat(itemToUpdate.margin_percent?.toString() || product.marlon_margin_percent?.toString() || '0'),
       quantity: newQuantity,
     });
 
@@ -293,6 +293,252 @@ export async function PUT(
     });
 
     return NextResponse.json({ success: true, data: orderItem });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || 'Une erreur est survenue' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string; itemId: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { purchase_price_ht, margin_percent, monthly_price_ht } = body;
+
+    if (purchase_price_ht === undefined && margin_percent === undefined && monthly_price_ht === undefined) {
+      return NextResponse.json(
+        { error: 'Fournissez au moins un champ à modifier: purchase_price_ht, margin_percent ou monthly_price_ht' },
+        { status: 400 }
+      );
+    }
+
+    const { data: order } = await serviceClient
+      .from('orders')
+      .select('*')
+      .eq('id', params.id)
+      .single();
+
+    if (!order) {
+      return NextResponse.json({ error: 'Commande non trouvée' }, { status: 404 });
+    }
+
+    const { data: itemToUpdate } = await serviceClient
+      .from('order_items')
+      .select('*')
+      .eq('id', params.itemId)
+      .eq('order_id', params.id)
+      .single();
+
+    if (!itemToUpdate) {
+      return NextResponse.json({ error: 'Article non trouvé' }, { status: 404 });
+    }
+
+    const { data: allItems } = await serviceClient
+      .from('order_items')
+      .select('*')
+      .eq('order_id', params.id);
+
+    if (!allItems || allItems.length === 0) {
+      return NextResponse.json({ error: 'Aucun article' }, { status: 400 });
+    }
+
+    const durationMonths = order.leasing_duration_months || 36;
+
+    // Cas 1: Override du prix mensuel uniquement (sans recalcul du coefficient)
+    if (monthly_price_ht !== undefined && purchase_price_ht === undefined && margin_percent === undefined) {
+      const newCalculatedPrice = parseFloat(monthly_price_ht) * durationMonths;
+      if (isNaN(newCalculatedPrice) || newCalculatedPrice < 0) {
+        return NextResponse.json({ error: 'Prix mensuel invalide' }, { status: 400 });
+      }
+
+      const { error: updateError } = await serviceClient
+        .from('order_items')
+        .update({ calculated_price_ht: newCalculatedPrice })
+        .eq('id', params.itemId)
+        .eq('order_id', params.id);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      const newTotal = allItems.reduce((sum: number, item: any) => {
+        const price = item.id === params.itemId ? newCalculatedPrice : parseFloat(item.calculated_price_ht?.toString() || '0');
+        return sum + price;
+      }, 0);
+
+      await serviceClient
+        .from('orders')
+        .update({ total_amount_ht: newTotal })
+        .eq('id', params.id);
+
+      const { data: productData } = await serviceClient
+        .from('products')
+        .select('name')
+        .eq('id', itemToUpdate.product_id)
+        .single();
+
+      await createOrderLog({
+        orderId: params.id,
+        actionType: 'item_updated',
+        description: `Prix mensuel modifié: ${productData?.name || itemToUpdate.product_id} → ${parseFloat(monthly_price_ht).toFixed(2)} €/mois HT`,
+        metadata: {
+          item_id: params.itemId,
+          product_id: itemToUpdate.product_id,
+          monthly_price_ht: parseFloat(monthly_price_ht),
+          calculated_price_ht: newCalculatedPrice,
+        },
+        userId: user.id,
+      });
+
+      const { data: updatedItem } = await serviceClient
+        .from('order_items')
+        .select('*')
+        .eq('id', params.itemId)
+        .single();
+
+      return NextResponse.json({ success: true, data: updatedItem });
+    }
+
+    // Cas 2: Modification prix d'achat et/ou marge → recalcul complet
+    if (!order.leaser_id) {
+      return NextResponse.json(
+        { error: 'Veuillez d\'abord sélectionner un leaser pour cette commande' },
+        { status: 400 }
+      );
+    }
+
+    const newPurchasePrice = purchase_price_ht !== undefined
+      ? parseFloat(purchase_price_ht)
+      : parseFloat(itemToUpdate.purchase_price_ht?.toString() || '0');
+    const newMarginPercent = margin_percent !== undefined
+      ? parseFloat(margin_percent)
+      : parseFloat(itemToUpdate.margin_percent?.toString() || '0');
+
+    if (isNaN(newPurchasePrice) || newPurchasePrice < 0) {
+      return NextResponse.json({ error: 'Prix d\'achat invalide' }, { status: 400 });
+    }
+    if (isNaN(newMarginPercent) || newMarginPercent < 0 || newMarginPercent > 100) {
+      return NextResponse.json({ error: 'Marge invalide (0-100%)' }, { status: 400 });
+    }
+
+    const itemsForRecalc = allItems.map((item: any) => {
+      if (item.id === params.itemId) {
+        return {
+          productId: item.product_id,
+          purchasePrice: newPurchasePrice,
+          marginPercent: newMarginPercent,
+          quantity: item.quantity,
+        };
+      }
+      return {
+        productId: item.product_id,
+        purchasePrice: parseFloat(item.purchase_price_ht?.toString() || '0'),
+        marginPercent: parseFloat(item.margin_percent?.toString() || '0'),
+        quantity: item.quantity,
+      };
+    });
+
+    const initialTotal = itemsForRecalc.reduce((sum, item) => {
+      const sellingPrice = item.purchasePrice * (1 + item.marginPercent / 100);
+      return sum + sellingPrice * item.quantity;
+    }, 0);
+
+    const recalculatedItems = await recalculateOrderPricesServer(
+      itemsForRecalc,
+      initialTotal,
+      order.leaser_id,
+      durationMonths
+    );
+
+    if (!recalculatedItems) {
+      return NextResponse.json(
+        { error: 'Coefficient non trouvé pour ce montant et cette durée. Vérifiez les coefficients du leaser.' },
+        { status: 400 }
+      );
+    }
+
+    const coefficient = recalculatedItems[0]?.coefficient;
+    if (!coefficient) {
+      return NextResponse.json({ error: 'Erreur lors du calcul du coefficient' }, { status: 500 });
+    }
+
+    // Mise à jour de tous les order_items avec les nouvelles valeurs (ordre préservé)
+    for (let i = 0; i < allItems.length; i++) {
+      const orderItem = allItems[i];
+      const recalc = recalculatedItems[i];
+      if (!recalc) continue;
+
+      const pricePerUnit = recalc.calculatedPrice / recalc.quantity;
+      await serviceClient
+        .from('order_items')
+        .update({
+          purchase_price_ht: recalc.purchasePrice,
+          margin_percent: recalc.marginPercent,
+          calculated_price_ht: pricePerUnit,
+          coefficient_used: coefficient,
+        })
+        .eq('id', orderItem.id);
+    }
+
+    const finalTotal = recalculatedItems.reduce((sum, item) => sum + item.calculatedPrice, 0);
+    await serviceClient
+      .from('orders')
+      .update({ total_amount_ht: finalTotal })
+      .eq('id', params.id);
+
+    const { data: productData } = await serviceClient
+      .from('products')
+      .select('name')
+      .eq('id', itemToUpdate.product_id)
+      .single();
+
+    const changes: string[] = [];
+    if (purchase_price_ht !== undefined) changes.push(`Prix d'achat: ${parseFloat(itemToUpdate.purchase_price_ht?.toString() || '0').toFixed(2)} → ${newPurchasePrice.toFixed(2)} €`);
+    if (margin_percent !== undefined) changes.push(`Marge: ${parseFloat(itemToUpdate.margin_percent?.toString() || '0').toFixed(2)}% → ${newMarginPercent.toFixed(2)}%`);
+
+    await createOrderLog({
+      orderId: params.id,
+      actionType: 'item_updated',
+      description: `Article modifié: ${productData?.name || itemToUpdate.product_id} (${changes.join(', ')})`,
+      metadata: {
+        item_id: params.itemId,
+        product_id: itemToUpdate.product_id,
+        purchase_price_ht: newPurchasePrice,
+        margin_percent: newMarginPercent,
+      },
+      userId: user.id,
+    });
+
+    const { data: updatedItem } = await serviceClient
+      .from('order_items')
+      .select('*')
+      .eq('id', params.itemId)
+      .single();
+
+    return NextResponse.json({ success: true, data: updatedItem });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Une erreur est survenue' },

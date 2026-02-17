@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
@@ -12,7 +13,8 @@ export default async function AdminDashboardPage() {
   }
 
   // Verify user is super admin
-  const { data: userRole } = await supabase
+  const serviceClient = createServiceClient();
+  const { data: userRole } = await serviceClient
     .from('user_roles')
     .select('is_super_admin')
     .eq('user_id', user.id)
@@ -23,20 +25,20 @@ export default async function AdminDashboardPage() {
     redirect('/login?error=Access denied');
   }
 
-  // Get stats
-  const { count: ordersCount } = await supabase
+  // Get stats via service client (bypass RLS) pour que tous les SA voient les comptes globaux
+  const { count: ordersCount } = await serviceClient
     .from('orders')
     .select('*', { count: 'exact', head: true });
 
-  const { count: organizationsCount } = await supabase
+  const { count: organizationsCount } = await serviceClient
     .from('organizations')
     .select('*', { count: 'exact', head: true });
 
-  const { count: productsCount } = await supabase
+  const { count: productsCount } = await serviceClient
     .from('products')
     .select('*', { count: 'exact', head: true });
 
-  const { count: pendingOrdersCount } = await supabase
+  const { count: pendingOrdersCount } = await serviceClient
     .from('orders')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pending');

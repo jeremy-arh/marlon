@@ -12,6 +12,7 @@ export default function CustomersPage() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [userCountMap, setUserCountMap] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
 
@@ -55,6 +56,8 @@ export default function CustomersPage() {
     setIsModalOpen(true);
   };
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const handleSuccess = () => {
     // Only close modal if editing, keep open for new customers (mass creation)
     if (editingCustomer) {
@@ -64,6 +67,37 @@ export default function CustomersPage() {
     loadCustomers();
     router.refresh();
   };
+
+  const handleDelete = async (e: React.MouseEvent, org: any) => {
+    e.stopPropagation();
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${org.name}" ? Cette action supprimera également toutes ses commandes et est irréversible.`)) return;
+    setDeletingId(org.id);
+    try {
+      const res = await fetch(`/api/admin/customers/${org.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+      loadCustomers();
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const filteredOrganizations = organizations.filter((org: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      org.name?.toLowerCase().includes(q) ||
+      org.siret?.toLowerCase().includes(q) ||
+      org.email?.toLowerCase().includes(q) ||
+      org.phone?.toLowerCase().includes(q) ||
+      org.address?.toLowerCase().includes(q) ||
+      org.city?.toLowerCase().includes(q) ||
+      org.postal_code?.toLowerCase().includes(q)
+    );
+  });
 
   if (loading) {
     return (
@@ -89,6 +123,8 @@ export default function CustomersPage() {
           <input
             type="search"
             placeholder="Rechercher un client"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-md border border-gray-300 bg-white px-10 py-2.5 text-sm text-black placeholder-gray-500 focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
           />
         </div>
@@ -110,8 +146,8 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {organizations && organizations.length > 0 ? (
-                organizations.map((org: any) => (
+              {filteredOrganizations && filteredOrganizations.length > 0 ? (
+                filteredOrganizations.map((org: any) => (
                   <tr 
                     key={org.id} 
                     className="hover:bg-gray-50 cursor-pointer"
@@ -132,8 +168,21 @@ export default function CustomersPage() {
                         <button
                           onClick={() => handleEdit(org)}
                           className="text-black hover:text-gray-700"
+                          title="Modifier"
                         >
                           <Icon icon="fluent:edit-24-filled" className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, org)}
+                          disabled={deletingId === org.id}
+                          className="text-red-600 hover:text-red-700 disabled:opacity-50"
+                          title="Supprimer"
+                        >
+                          {deletingId === org.id ? (
+                            <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
+                          )}
                         </button>
                       </div>
                     </td>

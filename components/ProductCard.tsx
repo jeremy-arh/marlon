@@ -55,55 +55,40 @@ export default function ProductCard({ product, defaultDurationMonths }: ProductC
 
   return (
     <Link
-      href={`/catalog/product/${product.id}`}
-      className="group relative flex flex-col overflow-hidden rounded-lg border border-marlon-stroke bg-white transition-shadow hover:shadow-md"
+      href={`/catalog/product/${(product as any).slug || product.id}`}
+      className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
     >
-      {mainImage && (
-        <div className="relative h-48 w-full">
+      <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
+        {mainImage ? (
           <Image
             src={mainImage}
             alt={product.name}
             fill
-            className="object-cover transition-transform group-hover:scale-105"
+            className="object-contain p-1.5"
           />
-        </div>
-      )}
-      <div className="flex flex-1 flex-col p-4">
-        <h2 className="text-xl font-semibold text-marlon-text">{product.name}</h2>
-        {product.reference && (
-          <p className="mt-1 text-sm text-marlon-text-secondary">Réf: {product.reference}</p>
+        ) : (
+          <span className="text-gray-300 text-[10px]">Pas d&apos;image</span>
         )}
-        {product.description && (
-          <p className="mt-2 line-clamp-2 flex-1 text-sm text-marlon-text-secondary">
-            {product.description.replace(/<[^>]*>/g, '')}
-          </p>
-        )}
-        
-        {/* Price Display */}
-        <div className="mt-4 border-t border-marlon-stroke pt-4">
+      </div>
+      <div className="p-1.5 flex-1 flex flex-col">
+        <h3 className="text-[10px] lg:text-[11px] font-medium text-gray-900 text-center leading-tight line-clamp-2 mb-1">
+          {product.name}
+        </h3>
+        <div className="mt-auto text-center">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-marlon-text-secondary">
-              <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
-              <span>Calcul du prix...</span>
-            </div>
+            <Icon icon="mdi:loading" className="h-3 w-3 animate-spin text-gray-400 mx-auto" />
           ) : price ? (
-            <div>
-              <div className="text-lg font-bold text-marlon-green">
+            <>
+              <p className="text-[9px] text-gray-500">à partir de</p>
+              <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
                 {price.monthly.toLocaleString('fr-FR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
-                })}{' '}
-                €<span className="text-sm font-normal">/mois</span>
-              </div>
-              <p className="text-xs text-marlon-text-secondary">
-                {defaultDurationMonths} mois • Total: {price.total.toLocaleString('fr-FR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })} €
+                })} € <span className="font-normal text-gray-500">/mois</span>
               </p>
-            </div>
+            </>
           ) : (
-            <p className="text-sm text-marlon-text-secondary">Prix sur demande</p>
+            <p className="text-[9px] text-gray-500">Prix sur demande</p>
           )}
         </div>
       </div>

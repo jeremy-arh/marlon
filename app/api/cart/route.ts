@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
             products(
               id,
               name,
+              slug,
               reference,
               purchase_price_ht,
               marlon_margin_percent,

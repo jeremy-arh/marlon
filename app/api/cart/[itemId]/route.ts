@@ -82,9 +82,9 @@ export async function PATCH(
 
     const updateData: any = {};
     if (quantity !== undefined) updateData.quantity = quantity;
-    // Support both naming conventions
+    // Support both naming conventions (column in DB is duration_months)
     const finalDurationMonths = leasing_duration_months || durationMonths;
-    if (finalDurationMonths !== undefined) updateData.leasing_duration_months = finalDurationMonths;
+    if (finalDurationMonths !== undefined) updateData.duration_months = finalDurationMonths;
 
     const { data, error } = await supabase
       .from('cart_items')

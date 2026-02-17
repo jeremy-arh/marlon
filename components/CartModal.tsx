@@ -14,6 +14,7 @@ interface CartItem {
   products?: {
     id: string;
     name: string;
+    slug?: string;
     reference?: string;
     purchase_price_ht: number;
     marlon_margin_percent: number;
@@ -28,10 +29,11 @@ interface CartModalProps {
 }
 
 const DURATION_OPTIONS = [
-  { value: 24, label: '24 mois' },
   { value: 36, label: '36 mois' },
   { value: 48, label: '48 mois' },
   { value: 60, label: '60 mois' },
+  { value: 72, label: '72 mois' },
+  { value: 84, label: '84 mois' },
 ];
 
 // Default coefficients by duration (as decimal, e.g., 0.035 = 3.5%)
@@ -41,6 +43,8 @@ const DEFAULT_COEFFICIENTS: Record<number, number> = {
   36: 0.038,   // 3.8%
   48: 0.032,   // 3.2%
   60: 0.028,   // 2.8%
+  72: 0.026,   // 2.6%
+  84: 0.024,   // 2.4%
 };
 
 // Calculate price locally using product data and coefficients
@@ -72,7 +76,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [loadingPrices, setLoadingPrices] = useState<Record<string, boolean>>({});
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [selectedDuration, setSelectedDuration] = useState(24);
+  const [selectedDuration, setSelectedDuration] = useState(36);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isFooterExpanded, setIsFooterExpanded] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -143,13 +147,38 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     try {
       const response = await fetch('/api/cart');
       const data = await response.json();
-      setCartItems(data.items || []);
+      const items = data.items || [];
+      setCartItems(items);
+      // Initialiser la durée depuis le panier (premier item)
+      const firstDuration = items[0]?.duration_months;
+      const validDuration = firstDuration && DURATION_OPTIONS.some((o) => o.value === firstDuration);
+      if (validDuration) {
+        setSelectedDuration(firstDuration);
+      }
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Persister la durée sélectionnée dans le panier (pour que le checkout l'affiche correctement)
+  useEffect(() => {
+    if (cartItems.length === 0) return;
+    const persistDuration = async () => {
+      await Promise.all(
+        cartItems.map((item) =>
+          fetch(`/api/cart/${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ durationMonths: selectedDuration }),
+          })
+        )
+      );
+      window.dispatchEvent(new CustomEvent('cart-updated'));
+    };
+    persistDuration();
+  }, [selectedDuration, cartItems]);
 
   const loadPrice = async (itemId: string, productId: string, durationMonths: number) => {
     const item = cartItems.find((i) => i.id === itemId);
@@ -257,7 +286,17 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     router.push('/catalog');
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
+    // S'assurer que la durée sélectionnée est bien persistée avant de naviguer
+    await Promise.all(
+      cartItems.map((item) =>
+        fetch(`/api/cart/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ durationMonths: selectedDuration }),
+        })
+      )
+    );
     onClose();
     router.push('/checkout');
   };
@@ -380,7 +419,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                               <p>Réf: {product.reference}</p>
                             )}
                             <Link
-                              href={`/catalog/product/${product?.id}`}
+                              href={`/catalog/product/${product?.slug || product?.id}`}
                               onClick={onClose}
                               className="text-marlon-green hover:underline block"
                             >

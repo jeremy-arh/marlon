@@ -9,6 +9,7 @@ import Icon from '@/components/Icon';
 interface Product {
   id: string;
   name: string;
+  slug?: string;
   reference?: string;
   description?: string;
   purchase_price_ht: number;
@@ -38,8 +39,7 @@ interface CategoryProductsClientProps {
   productType?: string | null;
   specialtyId?: string | null;
   specialtyName?: string | null;
-  itTypeId?: string | null;
-  itTypeName?: string | null;
+  itCategoryId?: string | null;
 }
 
 const getProductTypeLabel = (type: string): string => {
@@ -64,8 +64,7 @@ export default function CategoryProductsClient({
   productType,
   specialtyId,
   specialtyName,
-  itTypeId,
-  itTypeName,
+  itCategoryId,
 }: CategoryProductsClientProps) {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<string>('');
@@ -99,8 +98,9 @@ export default function CategoryProductsClient({
     return monthly;
   };
 
-  // Filter products
-  const filteredProducts = products.filter((product) => {
+  // Filter products then sort by price (cheapest first)
+  const filteredProducts = products
+    .filter((product) => {
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -129,7 +129,8 @@ export default function CategoryProductsClient({
     }
 
     return true;
-  });
+  })
+    .sort((a, b) => calculateMonthlyPrice(a) - calculateMonthlyPrice(b));
 
   // Get unique brands from products
   const productBrandIds = Array.from(new Set(products.map(p => p.brand_id).filter(Boolean)));
@@ -168,10 +169,10 @@ export default function CategoryProductsClient({
         {productType && (
           <>
             <Link 
-              href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itTypeId ? `&itType=${itTypeId}` : ''}`}
+              href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itCategoryId ? `&itCategory=${itCategoryId}` : ''}`}
               className="text-gray-500 hover:text-marlon-green transition-colors"
             >
-              {specialtyName || itTypeName || getProductTypeLabel(productType)}
+              {specialtyName || getProductTypeLabel(productType)}
             </Link>
             <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400" />
           </>
@@ -375,8 +376,8 @@ export default function CategoryProductsClient({
               return (
                 <Link
                   key={product.id}
-                  href={`/catalog/product/${product.id}`}
-                  className="flex flex-col rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                  href={`/catalog/product/${product.slug || product.id}`}
+                  className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">
                     {imageUrl ? (
@@ -391,7 +392,7 @@ export default function CategoryProductsClient({
                     )}
                   </div>
                   <div className="p-1.5 flex-1 flex flex-col">
-                    <h3 className="text-[10px] lg:text-[11px] font-medium text-[#1a365d] text-center leading-tight line-clamp-2 mb-1">
+                    <h3 className="text-[10px] lg:text-[11px] font-medium text-gray-900 text-center leading-tight line-clamp-2 mb-1">
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">

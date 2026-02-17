@@ -1,53 +1,33 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/supabase/service';
 
-// GET public settings (contact info) and FAQ
+// GET public settings (contact info) and FAQ - utilise le service client pour lecture fiable
 export async function GET() {
   try {
-    // Use anon key for public data access
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceClient = createServiceClient();
     
-    console.log('Supabase URL:', supabaseUrl ? 'OK' : 'MISSING');
-    console.log('Supabase Anon Key:', supabaseAnonKey ? 'OK' : 'MISSING');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    // Get visible settings
-    const { data: settings, error: settingsError } = await supabase
+    // Récupérer TOUS les settings puis filtrer par is_visible côté serveur
+    const { data: allSettings, error: settingsError } = await serviceClient
       .from('site_settings')
-      .select('key, value, is_visible')
-      .eq('is_visible', true);
-
-    console.log('Settings from DB:', settings);
-    console.log('Settings error:', settingsError);
+      .select('key, value, is_visible');
 
     if (settingsError) throw settingsError;
 
-    // Get visible FAQ items
-    const { data: faqItems, error: faqError } = await supabase
+    // Ne retourner que les settings avec is_visible = true
+    const visibleSettings = (allSettings || []).filter((s: any) => s.is_visible === true);
+    const settingsMap: Record<string, any> = {};
+    visibleSettings.forEach((s: any) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    // Récupérer les FAQ visibles
+    const { data: faqItems, error: faqError } = await serviceClient
       .from('faq_items')
       .select('id, question, answer, category, order_index')
       .eq('is_visible', true)
       .order('order_index');
 
     if (faqError) throw faqError;
-
-    // Transform settings to a more usable format
-    const settingsMap: Record<string, any> = {};
-    settings?.forEach((s) => {
-      settingsMap[s.key] = s.value;
-    });
-
-    console.log('📤 Returning support settings:', {
-      settings: settingsMap,
-      faqCount: faqItems?.length || 0,
-      visibleSettings: settings?.map(s => ({ key: s.key, is_visible: s.is_visible }))
-    });
 
     return NextResponse.json(
       {

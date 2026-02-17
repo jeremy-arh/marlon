@@ -13,17 +13,19 @@ export default async function CatalogPage() {
     .select('id, name, slug, description, image_url, product_type')
     .order('name');
 
-  // Fetch all specialties
-  const { data: specialties } = await supabase
+  // Fetch all specialties (tri alphabétique, "Autres" masqué dans l'app)
+  const { data: rawSpecialties } = await supabase
     .from('specialties')
     .select('id, name')
     .order('name');
+  const specialties = (rawSpecialties || [])
+    .filter((s: { name?: string }) => (s.name || '') !== 'Autres')
+    .sort((a: { name?: string }, b: { name?: string }) =>
+      (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' })
+    );
 
-  // Fetch all IT equipment types
-  const { data: itTypes } = await supabase
-    .from('it_equipment_types')
-    .select('id, name')
-    .order('name');
+  // IT categories (categories with product_type = it_equipment) for the Informatique dropdown
+  const itCategories = (categories || []).filter((c: any) => c.product_type === 'it_equipment');
 
   // Fetch category-specialty mappings
   const { data: categorySpecialtiesData } = await supabase
@@ -96,22 +98,17 @@ export default async function CatalogPage() {
     .is('parent_product_id', null)
     .order('name');
 
-  // Build itType -> products map using category_it_types as bridge
-  const itTypeProducts: Record<string, any[]> = {};
+  // Build category_id -> products map for IT categories (products linked via product_categories)
+  const itCategoryProducts: Record<string, any[]> = {};
   itProducts?.forEach((product: any) => {
     const productCategoryIds = (product.product_categories || []).map((pc: any) => pc.category_id);
-    // For each category of this product, find the IT types linked to that category
     productCategoryIds.forEach((catId: string) => {
-      const linkedItTypes = categoryItTypes[catId] || [];
-      linkedItTypes.forEach((itTypeId: string) => {
-        if (!itTypeProducts[itTypeId]) {
-          itTypeProducts[itTypeId] = [];
-        }
-        // Avoid duplicates
-        if (!itTypeProducts[itTypeId].find((p: any) => p.id === product.id)) {
-          itTypeProducts[itTypeId].push(product);
-        }
-      });
+      if (!itCategoryProducts[catId]) {
+        itCategoryProducts[catId] = [];
+      }
+      if (!itCategoryProducts[catId].find((p: any) => p.id === product.id)) {
+        itCategoryProducts[catId].push(product);
+      }
     });
   });
 
@@ -239,14 +236,15 @@ export default async function CatalogPage() {
         categorySpecialties={categorySpecialties}
         categoryItTypes={categoryItTypes}
         specialties={specialties || []}
-        itTypes={itTypes || []}
-        itTypeProducts={itTypeProducts}
+        itCategories={itCategories}
+        itCategoryProducts={itCategoryProducts}
         allItProducts={allItProducts}
         allMedicalProducts={medicalProducts || []}
         coefficient={coefficient}
         productCheapestPrices={productCheapestPrices}
         productCheapestImages={productCheapestImages}
         productCheapestId={productCheapestId}
+        productCheapestSlug={productCheapestSlug}
       />
     </Suspense>
   );

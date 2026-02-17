@@ -17,6 +17,7 @@ interface InvitationData {
   id: string;
   organization_id: string;
   role: string;
+  is_super_admin?: boolean;
   organizations: {
     name: string;
   };
@@ -200,7 +201,8 @@ function CompleteInvitationContent() {
       return;
     }
 
-    if (!invitation) {
+    const invitationToken = token || user?.user_metadata?.invitation_token;
+    if (!invitationToken && !user?.email) {
       setError('Invitation introuvable');
       return;
     }
@@ -221,51 +223,37 @@ function CompleteInvitationContent() {
         throw updateError;
       }
 
-      // Create user role
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: user.id,
-          organization_id: invitation.organization_id,
-          role: invitation.role || 'employee',
-          status: 'active',
-        });
+      // Créer le rôle via l'API (service client) pour garantir is_super_admin dans user_roles
+      const res = await fetch('/api/auth/complete-invitation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: invitationToken,
+          firstName,
+          lastName,
+        }),
+      });
 
-      if (roleError) {
-        // Check if role already exists
-        if (!roleError.message.includes('duplicate')) {
-          throw roleError;
-        }
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur lors de la finalisation');
       }
-
-      // Create default permissions
-      const isAdmin = invitation.role === 'admin';
-
-      await supabase
-        .from('user_permissions')
-        .upsert({
-          user_id: user.id,
-          organization_id: invitation.organization_id,
-          can_access_orders: isAdmin,
-          can_create_orders: isAdmin,
-          can_manage_employees: isAdmin,
-          can_sign_contracts: isAdmin,
-        }, {
-          onConflict: 'user_id,organization_id',
-        });
-
-      // Mark invitation as accepted
-      await supabase
-        .from('user_invitations')
-        .update({ accepted_at: new Date().toISOString() })
-        .eq('id', invitation.id);
 
       setSuccess(true);
 
+      // Rediriger les super admins vers le back-office (pas l'app)
+      const isSuperAdmin = data.is_super_admin ?? invitation?.is_super_admin ?? user?.user_metadata?.is_super_admin;
+      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'http://localhost:3001';
+      const redirectUrl = isSuperAdmin ? `${boUrl}/admin/dashboard` : '/catalog';
+
       setTimeout(() => {
-        router.push('/catalog');
-        router.refresh();
-      }, 2000);
+        if (isSuperAdmin) {
+          window.location.replace(redirectUrl);
+        } else {
+          router.push(redirectUrl);
+          router.refresh();
+        }
+      }, 1500);
     } catch (err: any) {
       console.error('Error completing invitation:', err);
       setError(err.message || 'Une erreur est survenue');
@@ -322,6 +310,14 @@ function CompleteInvitationContent() {
           <h1 className="text-xl font-bold text-gray-900 mb-2">Compte configuré !</h1>
           <p className="text-gray-600 mb-4">
             Bienvenue chez {invitation?.organizations?.name}
+            {(invitation?.is_super_admin || user?.user_metadata?.is_super_admin) && (
+              <>
+                {' — Vous serez redirigé vers le back-office. '}
+                <a href={`${process.env.NEXT_PUBLIC_BO_URL || 'http://localhost:3001'}/admin/dashboard`} className="text-marlon-green underline font-medium">
+                  Cliquez ici si la redirection ne fonctionne pas.
+                </a>
+              </>
+            )}
           </p>
           <p className="text-sm text-gray-500">Redirection en cours...</p>
         </div>
@@ -352,7 +348,7 @@ function CompleteInvitationContent() {
                       {invitation.organizations?.name}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      en tant que {ROLE_LABELS[invitation.role || 'user']}
+                      en tant que {invitation.is_super_admin ? 'Super administrateur' : ROLE_LABELS[invitation.role || 'user']}
                     </p>
                   </div>
                 )}

@@ -74,11 +74,11 @@ export default function MobileSidebar() {
         }`}
       >
         <div className="p-6">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex items-center justify-center gap-2">
             <img
               src={LOGO_URL}
               alt="MARLON"
-              className="h-6 w-auto"
+              className="h-10 w-auto"
             />
           </div>
         </div>

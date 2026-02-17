@@ -12,12 +12,14 @@ import TimelineTab from './tabs/TimelineTab';
 interface CustomerDetailClientProps {
   organization: any;
   initialEmployees?: any[];
+  initialInvitations?: any[];
   initialOrders?: any[];
 }
 
 export default function CustomerDetailClient({
   organization: initialOrganization,
   initialEmployees = [],
+  initialInvitations = [],
   initialOrders = [],
 }: CustomerDetailClientProps) {
   const router = useRouter();
@@ -41,6 +43,8 @@ export default function CustomerDetailClient({
     }
   }, [activeTab]);
 
+  const [deleting, setDeleting] = useState(false);
+
   const refreshOrganizationData = async () => {
     const response = await fetch(`/api/admin/customers/${initialOrganization.id}`);
     if (response.ok) {
@@ -50,6 +54,22 @@ export default function CustomerDetailClient({
       }
     }
     router.refresh();
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${organization.name}" ? Cette action supprimera également toutes ses commandes et est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/customers/${organization.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+      router.push('/admin/customers');
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const tabs = [
@@ -75,6 +95,18 @@ export default function CustomerDetailClient({
             {organization.name}
           </h1>
         </div>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+        >
+          {deleting ? (
+            <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+          ) : (
+            <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
+          )}
+          Supprimer le client
+        </button>
       </div>
 
       {/* Tabs */}
@@ -111,7 +143,9 @@ export default function CustomerDetailClient({
         {activeTab === 'employees' && (
           <EmployeesTab 
             organizationId={organization.id}
+            organizationName={organization.name}
             initialEmployees={initialEmployees}
+            initialInvitations={initialInvitations}
             onUpdate={refreshOrganizationData}
           />
         )}

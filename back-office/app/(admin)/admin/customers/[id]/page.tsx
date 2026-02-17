@@ -45,30 +45,48 @@ export default async function CustomerDetailPage({
     .select('*')
     .eq('organization_id', params.id);
 
-  // Get user emails using admin API
+  // Get user emails, first_name, last_name using admin API
   const userIds = userRoles?.map((ur: any) => ur.user_id).filter(Boolean) || [];
-  const userEmailsMap: Record<string, string> = {};
-  
+  const userDataMap: Record<string, { email: string; first_name?: string; last_name?: string }> = {};
+
   if (userIds.length > 0) {
     try {
       const { data: { users }, error: usersError } = await serviceClient.auth.admin.listUsers();
       if (!usersError && users) {
         users.forEach((u: any) => {
           if (u.id && userIds.includes(u.id)) {
-            userEmailsMap[u.id] = u.email || '';
+            const meta = u.user_metadata || {};
+            userDataMap[u.id] = {
+              email: u.email || '',
+              first_name: meta.first_name || undefined,
+              last_name: meta.last_name || undefined,
+            };
           }
         });
       }
     } catch (err) {
-      console.error('Error fetching user emails:', err);
+      console.error('Error fetching user data:', err);
     }
   }
 
-  // Transform user roles to include email
+  // Transform user roles to include email and names
   const employees = userRoles?.map((ur: any) => ({
     ...ur,
-    user: ur.user_id ? { email: userEmailsMap[ur.user_id] || null } : null,
+    user: ur.user_id ? {
+      email: userDataMap[ur.user_id]?.email || null,
+      first_name: userDataMap[ur.user_id]?.first_name ?? null,
+      last_name: userDataMap[ur.user_id]?.last_name ?? null,
+    } : null,
   })) || [];
+
+  // Get pending invitations
+  const { data: invitations } = await serviceClient
+    .from('user_invitations')
+    .select('id, email, first_name, last_name, role, token, expires_at, accepted_at, created_at')
+    .eq('organization_id', params.id)
+    .is('accepted_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false });
 
   // Get orders
   const { data: orders } = await serviceClient
@@ -92,6 +110,7 @@ export default async function CustomerDetailPage({
     <CustomerDetailClient
       organization={organization}
       initialEmployees={employees}
+      initialInvitations={invitations || []}
       initialOrders={orders || []}
     />
   );

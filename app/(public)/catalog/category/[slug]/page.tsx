@@ -3,24 +3,24 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CategoryProductsClient from './CategoryProductsClient';
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const supabase = await createClient();
-  const { data: category } = await supabase.from('categories').select('name').eq('id', params.id).single();
+  const { data: category } = await supabase.from('categories').select('name').eq('slug', params.slug).single();
   return { title: category?.name || 'Catégorie' };
 }
 
 export default async function CategoryPage({
   params,
 }: {
-  params: { id: string };
+  params: { slug: string };
 }) {
   const supabase = await createClient();
 
   // Fetch category
   const { data: category } = await supabase
     .from('categories')
-    .select('id, name, description, image_url')
-    .eq('id', params.id)
+    .select('id, name, slug, description, image_url')
+    .eq('slug', params.slug)
     .single();
 
   if (!category) {
@@ -31,7 +31,7 @@ export default async function CategoryPage({
   const { data: productCategories } = await supabase
     .from('product_categories')
     .select('product_id')
-    .eq('category_id', params.id);
+    .eq('category_id', category.id);
 
   const productIds = productCategories?.map((pc) => pc.product_id) || [];
 
@@ -41,6 +41,7 @@ export default async function CategoryPage({
     .select(`
       id,
       name,
+      slug,
       reference,
       description,
       purchase_price_ht,
@@ -107,7 +108,7 @@ export default async function CategoryPage({
     const { data: categorySpecialty } = await supabase
       .from('category_specialties')
       .select('specialty_id, specialties(name)')
-      .eq('category_id', params.id)
+      .eq('category_id', category.id)
       .limit(1)
       .single();
     
@@ -119,24 +120,8 @@ export default async function CategoryPage({
     }
   }
 
-  // Get IT type name if category has one (for IT equipment)
-  let itTypeId: string | null = null;
-  let itTypeName: string | null = null;
-  if (mostCommonType === 'it_equipment') {
-    const { data: categoryItType } = await supabase
-      .from('category_it_types')
-      .select('it_type_id, it_equipment_types(name)')
-      .eq('category_id', params.id)
-      .limit(1)
-      .single();
-    
-    if (categoryItType) {
-      itTypeId = categoryItType.it_type_id;
-      if (categoryItType.it_equipment_types) {
-        itTypeName = (categoryItType.it_equipment_types as any).name;
-      }
-    }
-  }
+  // For IT categories: use category id for breadcrumb link (dropdown now shows categories)
+  const itCategoryId = mostCommonType === 'it_equipment' ? category.id : null;
 
   return (
     <CategoryProductsClient
@@ -148,8 +133,7 @@ export default async function CategoryPage({
       productType={mostCommonType}
       specialtyId={specialtyId}
       specialtyName={specialtyName}
-      itTypeId={itTypeId}
-      itTypeName={itTypeName}
+      itCategoryId={itCategoryId}
     />
   );
 }

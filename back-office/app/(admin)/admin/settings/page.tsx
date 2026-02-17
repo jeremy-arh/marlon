@@ -38,8 +38,18 @@ interface VariantFilterOption {
   order_index: number;
 }
 
+interface SuperAdmin {
+  id: string;
+  user_id: string | null;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  created_at: string;
+  status: 'active' | 'pending';
+}
+
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'contact' | 'faq' | 'variants'>('contact');
+  const [activeTab, setActiveTab] = useState<'contact' | 'faq' | 'variants' | 'superadmins'>('contact');
   const [settings, setSettings] = useState<Setting[]>([]);
   const [originalSettings, setOriginalSettings] = useState<Setting[]>([]);
   const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
@@ -66,6 +76,11 @@ export default function SettingsPage() {
     order_index: 0,
   });
 
+  // Super admins state
+  const [superAdmins, setSuperAdmins] = useState<SuperAdmin[]>([]);
+  const [showSuperAdminForm, setShowSuperAdminForm] = useState(false);
+  const [superAdminForm, setSuperAdminForm] = useState({ email: '', first_name: '', last_name: '' });
+
   // FAQ form state
   const [editingFaq, setEditingFaq] = useState<FaqItem | null>(null);
   const [showFaqForm, setShowFaqForm] = useState(false);
@@ -86,15 +101,17 @@ export default function SettingsPage() {
     try {
       // Add cache busting to ensure fresh data
       const timestamp = Date.now();
-      const [settingsRes, faqRes, filtersRes] = await Promise.all([
+      const [settingsRes, faqRes, filtersRes, superAdminsRes] = await Promise.all([
         fetch(`/api/admin/settings?t=${timestamp}`, { cache: 'no-store' }),
         fetch(`/api/admin/faq?t=${timestamp}`, { cache: 'no-store' }),
         fetch(`/api/admin/product-variant-filters?t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/admin/super-admins?t=${timestamp}`, { cache: 'no-store' }),
       ]);
 
       const settingsData = await settingsRes.json();
       const faqData = await faqRes.json();
       const filtersData = await filtersRes.json();
+      const superAdminsData = await superAdminsRes.json();
 
       console.log('📥 Loaded settings data:', settingsData);
       console.log('📥 Settings from API:', JSON.stringify(settingsData.data, null, 2));
@@ -119,6 +136,7 @@ export default function SettingsPage() {
       }
       if (faqData.success) setFaqItems(faqData.data);
       if (filtersData.success) setVariantFilters(filtersData.data || []);
+      if (superAdminsData.success) setSuperAdmins(superAdminsData.data || []);
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Erreur lors du chargement des données');
@@ -437,6 +455,52 @@ export default function SettingsPage() {
     });
   };
 
+  const handleSuperAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/super-admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(superAdminForm),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setSuccess('Invitation envoyée ! L\'utilisateur recevra un email pour créer son mot de passe.');
+      setTimeout(() => setSuccess(null), 5000);
+      setSuperAdminForm({ email: '', first_name: '', last_name: '' });
+      setShowSuperAdminForm(false);
+      loadData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSuperAdmin = async (id: string) => {
+    if (!confirm('Supprimer définitivement ce super admin ? L\'utilisateur sera retiré de Supabase Auth et ne pourra plus se connecter.')) return;
+
+    try {
+      const res = await fetch(`/api/admin/super-admins?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setSuccess('Super admin supprimé');
+      setTimeout(() => setSuccess(null), 3000);
+      loadData();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -514,6 +578,17 @@ export default function SettingsPage() {
           >
             <Icon icon="mdi:filter-variant" className="h-5 w-5 inline mr-2" />
             Filtres de variantes ({variantFilters.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('superadmins')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'superadmins'
+                ? 'border-marlon-green text-marlon-green'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Icon icon="mdi:shield-account" className="h-5 w-5 inline mr-2" />
+            Super admins ({superAdmins.length})
           </button>
         </nav>
       </div>
@@ -1039,6 +1114,133 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Super admins Tab */}
+      {activeTab === 'superadmins' && (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setSuperAdminForm({ email: '', first_name: '', last_name: '' });
+                setShowSuperAdminForm(true);
+              }}
+              className="px-4 py-2 bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 flex items-center gap-2"
+            >
+              <Icon icon="mdi:plus" className="h-5 w-5" />
+              Ajouter un super admin
+            </button>
+          </div>
+
+          {showSuperAdminForm && (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Inviter un super admin</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Un email d&apos;invitation sera envoyé. L&apos;utilisateur pourra créer son propre mot de passe via le lien reçu.
+              </p>
+              <form onSubmit={handleSuperAdminSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={superAdminForm.email}
+                    onChange={(e) => setSuperAdminForm({ ...superAdminForm, email: e.target.value })}
+                    required
+                    placeholder="admin@marlon.fr"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+                    <input
+                      type="text"
+                      value={superAdminForm.first_name}
+                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, first_name: e.target.value })}
+                      placeholder="Jean"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                    <input
+                      type="text"
+                      value={superAdminForm.last_name}
+                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, last_name: e.target.value })}
+                      placeholder="Dupont"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-marlon-green focus:border-marlon-green"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSuperAdminForm(false);
+                      setSuperAdminForm({ email: '', first_name: '', last_name: '' });
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 disabled:opacity-50"
+                  >
+                    {saving ? 'Envoi...' : 'Envoyer l\'invitation'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ajouté le</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {superAdmins.map((sa) => (
+                  <tr key={sa.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-900">{sa.first_name || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{sa.last_name || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{sa.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        sa.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {sa.status === 'active' ? 'Actif' : 'En attente'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {sa.created_at ? new Date(sa.created_at).toLocaleDateString('fr-FR') : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => deleteSuperAdmin(sa.id)}
+                        className="p-1 text-gray-600 hover:text-red-600"
+                        title="Retirer"
+                      >
+                        <Icon icon="mdi:trash-can" className="h-5 w-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {superAdmins.length === 0 && (
+              <p className="p-6 text-center text-gray-500">Aucun super admin</p>
+            )}
           </div>
         </div>
       )}

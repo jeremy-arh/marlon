@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import ProductDetailClient from './ProductDetailClient';
 
-async function getProduct(id: string) {
+async function getProduct(slug: string) {
   const supabase = await createClient();
 
   const { data: product } = await supabase
@@ -15,7 +15,7 @@ async function getProduct(id: string) {
       suppliers(name),
       default_leaser:leasers(id, name)
     `)
-    .eq('id', id)
+    .eq('slug', slug)
     .single();
 
   return product;
@@ -26,7 +26,7 @@ async function getProductCategory(productId: string) {
 
   const { data: productCategory } = await supabase
     .from('product_categories')
-    .select('category_id, categories(id, name)')
+    .select('category_id, categories(id, name, slug)')
     .eq('product_id', productId)
     .limit(1)
     .single();
@@ -59,6 +59,7 @@ async function getRelatedProducts(categoryId: string, currentProductId: string, 
     .select(`
       id,
       name,
+      slug,
       purchase_price_ht,
       marlon_margin_percent,
       product_images(image_url, order_index)
@@ -73,9 +74,9 @@ async function getRelatedProducts(categoryId: string, currentProductId: string, 
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: { slug: string };
 }): Promise<Metadata> {
-  const product = await getProduct(params.id);
+  const product = await getProduct(params.slug);
 
   if (!product) {
     return {
@@ -92,10 +93,10 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
 }: {
-  params: { id: string };
+  params: { slug: string };
 }) {
   const supabase = await createClient();
-  const product = await getProduct(params.id);
+  const product = await getProduct(params.slug);
 
   if (!product) {
     notFound();
@@ -110,6 +111,7 @@ export default async function ProductPage({
     .select(`
       id,
       name,
+      slug,
       purchase_price_ht,
       marlon_margin_percent,
       variant_data,
@@ -124,12 +126,12 @@ export default async function ProductPage({
 
   // Get category for breadcrumb and related products
   // If current product is a variant, use parent's category
-  const categoryProductId = product.parent_product_id || params.id;
+  const categoryProductId = product.parent_product_id || product.id;
   const productCategory = await getProductCategory(categoryProductId);
-  const category = productCategory?.categories as { id: string; name: string } | null;
+  const category = productCategory?.categories as { id: string; name: string; slug: string } | null;
 
   // Get related products (excluding all group members)
-  const relatedProducts = category ? await getRelatedProducts(category.id, params.id, groupProductIds) : [];
+  const relatedProducts = category ? await getRelatedProducts(category.id, product.id, groupProductIds) : [];
 
   // Get product type and specialty for breadcrumb
   let productType = product.product_type || null;
@@ -152,24 +154,8 @@ export default async function ProductPage({
     }
   }
 
-  // Get IT type name if category has one (for IT equipment)
-  let itTypeId: string | null = null;
-  let itTypeName: string | null = null;
-  if (category && productType === 'it_equipment') {
-    const { data: categoryItType } = await supabase
-      .from('category_it_types')
-      .select('it_type_id, it_equipment_types(name)')
-      .eq('category_id', category.id)
-      .limit(1)
-      .single();
-
-    if (categoryItType) {
-      itTypeId = categoryItType.it_type_id;
-      if (categoryItType.it_equipment_types) {
-        itTypeName = (categoryItType.it_equipment_types as any).name;
-      }
-    }
-  }
+  // For IT products: use category id for breadcrumb link (dropdown now shows categories)
+  const itCategoryId = category && productType === 'it_equipment' ? category.id : null;
 
   // Load ALL leaser coefficients once for price calculations
   const { data: allCoefficients } = await supabase
@@ -248,8 +234,7 @@ export default async function ProductPage({
       productType={productType}
       specialtyId={specialtyId}
       specialtyName={specialtyName}
-      itTypeId={itTypeId}
-      itTypeName={itTypeName}
+      itCategoryId={itCategoryId}
       coefficient={Number(coefficient)}
       currentMonthlyPrice={currentMonthlyPrice}
       cheapestMonthlyPrice={cheapestMonthlyPrice}

@@ -44,6 +44,20 @@ export default function OrderDetailClient({
     }
   }, [activeTab]);
 
+  const [deleting, setDeleting] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ itemId: string; field: 'purchase_price_ht' | 'margin_percent' | 'monthly_price_ht' | 'quantity'; value: string } | null>(null);
+  const [savingItem, setSavingItem] = useState<string | null>(null);
+  const [editingSummary, setEditingSummary] = useState<'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc' | null>(null);
+  const [editingSummaryValue, setEditingSummaryValue] = useState('');
+  const [savingSummary, setSavingSummary] = useState(false);
+  const [editingDuration, setEditingDuration] = useState(false);
+  const [savingDuration, setSavingDuration] = useState(false);
+
+  const currentDuration = order.leasing_duration_months || 36;
+  const LEASING_DURATIONS = [24, 36, 48, 60, 72, 84].includes(currentDuration)
+    ? [24, 36, 48, 60, 72, 84]
+    : [currentDuration, 24, 36, 48, 60, 72, 84].sort((a, b) => a - b);
+
   const refreshOrderData = async () => {
     // Fetch fresh data
     const response = await fetch(`/api/admin/orders/${initialOrder.id}`);
@@ -57,24 +71,136 @@ export default function OrderDetailClient({
     router.refresh();
   };
 
-  // Calculate totals
-  const purchasePriceHT = order.order_items?.reduce((sum: number, item: any) => {
-    const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
+  const handleSaveSummaryPrice = async (field: 'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc', value: string) => {
+    const cleaned = value.replace(/\s/g, '').replace(',', '.').replace('€', '').trim();
+    const num = parseFloat(cleaned);
+    if (isNaN(num) || num < 0) return;
+    setSavingSummary(true);
+    setEditingSummary(null);
+    try {
+      const body: Record<string, number> = {};
+      if (field === 'purchase_price_ht') body.total_purchase_price_ht = num;
+      else if (field === 'ca_marlon_ht') body.total_ca_marlon_ht = num;
+      else body.total_monthly_ttc = num;
+      const res = await fetch(`/api/admin/orders/${order.id}/prices`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      await refreshOrderData();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSavingSummary(false);
+    }
+  };
+
+  const handleSaveDuration = async (months: number) => {
+    setSavingDuration(true);
+    setEditingDuration(false);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leasing_duration_months: months }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      await refreshOrderData();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSavingDuration(false);
+    }
+  };
+
+  const handleSaveQuantity = async (itemId: string, productId: string, value: string) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) || num < 1) return;
+    setSavingItem(itemId);
+    setEditingItem(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}/items/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, quantity: num }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      await refreshOrderData();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSavingItem(null);
+    }
+  };
+
+  const handleSavePrice = async (itemId: string, field: 'purchase_price_ht' | 'margin_percent' | 'monthly_price_ht', value: string, isTTC?: boolean) => {
+    let num = parseFloat(value.replace(',', '.'));
+    if (field === 'monthly_price_ht' && isTTC) num = num / 1.2; // Convertir TTC → HT
+    if (isNaN(num) || num < 0) return;
+    setSavingItem(itemId);
+    setEditingItem(null);
+    try {
+      const body: Record<string, number> = {};
+      if (field === 'purchase_price_ht') body.purchase_price_ht = num;
+      else if (field === 'margin_percent') body.margin_percent = num;
+      else body.monthly_price_ht = num;
+
+      const res = await fetch(`/api/admin/orders/${order.id}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      await refreshOrderData();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSavingItem(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la commande #${order.id.slice(0, 8)} ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+      router.push('/admin/orders');
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Calculs depuis les order_items (jamais modifiés par le Résumé)
+  const calculatedPurchaseHT = order.order_items?.reduce((sum: number, item: any) => {
+    const purchasePrice = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
     return sum + (purchasePrice * item.quantity);
   }, 0) || 0;
 
-  const purchasePriceTTC = order.order_items?.reduce((sum: number, item: any) => {
-    const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-    return sum + (purchasePrice * 1.2 * item.quantity);
-  }, 0) || 0;
-
-  const marlonRevenueHT = order.order_items?.reduce((sum: number, item: any) => {
-    const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-    const margin = parseFloat(item.product?.marlon_margin_percent?.toString() || '0');
+  const calculatedCaMarlon = order.order_items?.reduce((sum: number, item: any) => {
+    const purchasePrice = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
+    const margin = parseFloat(item.margin_percent?.toString() || item.product?.marlon_margin_percent?.toString() || '0');
     return sum + (purchasePrice * margin / 100 * item.quantity);
   }, 0) || 0;
 
-  const monthlyPrice = order.total_amount_ht / order.leasing_duration_months;
+  const durationMonths = order.leasing_duration_months || 36;
+  const totalHT = parseFloat(order.total_amount_ht?.toString() || '0') || 0;
+  const calculatedMonthlyTTC = (totalHT / durationMonths) * 1.2;
+
+  // Résumé : overrides si définis, sinon valeurs calculées
+  const purchasePriceHT = order.override_purchase_price_ht != null ? parseFloat(order.override_purchase_price_ht) : calculatedPurchaseHT;
+  const purchasePriceTTC = purchasePriceHT * 1.2;
+  const marlonRevenueHT = order.override_ca_marlon_ht != null ? parseFloat(order.override_ca_marlon_ht) : calculatedCaMarlon;
+  const monthlyPrice = order.override_monthly_ttc != null ? parseFloat(order.override_monthly_ttc) : calculatedMonthlyTTC;
   const equipmentCount = order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
 
   const tabs = [
@@ -102,6 +228,18 @@ export default function OrderDetailClient({
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+          >
+            {deleting ? (
+              <Icon icon="mdi:loading" className="h-5 w-5 animate-spin" />
+            ) : (
+              <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
+            )}
+            Supprimer
+          </button>
           <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
             order.status === 'draft' ? 'bg-gray-100 text-gray-800' :
             order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -159,7 +297,10 @@ export default function OrderDetailClient({
               {/* Order Items */}
               <div className="rounded-lg bg-white border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-black">Articles de la commande</h2>
+                  <div>
+                    <h2 className="text-lg font-semibold text-black">Articles de la commande</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Cliquez sur un prix pour le modifier</p>
+                  </div>
                   {/* Toggle HT/TTC */}
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">Affichage des prix:</span>
@@ -209,60 +350,147 @@ export default function OrderDetailClient({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {order.order_items && order.order_items.length > 0 ? (
-                        order.order_items.map((item: any) => {
-                          const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-                          const margin = parseFloat(item.product?.marlon_margin_percent?.toString() || '0');
-                          const calculatedPrice = parseFloat(item.calculated_price_ht?.toString() || '0');
-                          const coefficient = parseFloat(item.coefficient_used?.toString() || '0');
+                        (() => {
+                          const grouped = order.order_items.reduce((acc: Record<string, { items: any[] }>, item: any) => {
+                            const pid = item.product_id;
+                            if (!acc[pid]) acc[pid] = { items: [] };
+                            acc[pid].items.push(item);
+                            return acc;
+                          }, {});
+                          const rows = Object.values(grouped).map((g) => {
+                            const first = g.items[0];
+                            const qty = g.items.reduce((s: number, i: any) => s + (i.quantity || 1), 0);
+                            const totalCalc = g.items.reduce((s: number, i: any) => s + parseFloat(i.calculated_price_ht?.toString() || '0') * (i.quantity || 1), 0);
+                            return {
+                              productId: first.product_id,
+                              product: first.product,
+                              items: g.items,
+                              quantity: qty,
+                              totalCalculatedPrice: totalCalc,
+                              purchasePrice: parseFloat(first.purchase_price_ht?.toString() || first.product?.purchase_price_ht?.toString() || '0'),
+                              margin: parseFloat(first.margin_percent?.toString() || first.product?.marlon_margin_percent?.toString() || '0'),
+                              coefficient: parseFloat(first.coefficient_used?.toString() || '0'),
+                              firstItemId: first.id,
+                            };
+                          });
+                          return rows.map((row) => {
+                            const durationMonths = order.leasing_duration_months || 36;
+                            const unitCalc = row.totalCalculatedPrice / row.quantity;
+                            const monthlyPriceHT = unitCalc / durationMonths;
+                            const monthlyPriceTTC = monthlyPriceHT * 1.20;
+                            const isEditing = editingItem?.itemId === row.firstItemId;
+                            const isSaving = savingItem === row.firstItemId;
 
-                          return (
-                            <tr key={item.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm font-medium text-black">{item.product?.name || 'N/A'}</div>
-                                  {item.product?.reference && (
-                                    <div className="text-sm text-gray-500">Ref: {item.product.reference}</div>
+                            const EditableCell = ({ field, displayValue, onStartEdit, isMonthlyTTC }: { field: 'purchase_price_ht' | 'margin_percent' | 'monthly_price_ht'; displayValue: string; onStartEdit: () => void; isMonthlyTTC?: boolean }) => {
+                              const isThisEditing = isEditing && editingItem?.field === field;
+                              const value = isThisEditing ? editingItem!.value : displayValue;
+                              return (
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {isThisEditing ? (
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={value}
+                                      onChange={(e) => setEditingItem((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                                      onBlur={() => handleSavePrice(row.firstItemId, field, value, isMonthlyTTC)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSavePrice(row.firstItemId, field, value, isMonthlyTTC);
+                                        if (e.key === 'Escape') setEditingItem(null);
+                                      }}
+                                      className="w-24 px-2 py-1 border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                                    />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={onStartEdit}
+                                      disabled={isSaving}
+                                      className="text-left hover:bg-marlon-green/10 rounded px-1 py-0.5 -mx-1 transition-colors disabled:opacity-50"
+                                      title="Cliquer pour modifier"
+                                    >
+                                      {value}
+                                    </button>
                                   )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {purchasePrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {margin.toFixed(2)}%
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {item.quantity}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {(() => {
-                                  const unitPriceHT = calculatedPrice / item.quantity;
-                                  const unitPriceTTC = unitPriceHT * 1.20; // TVA 20%
-                                  const displayPrice = showTTC ? unitPriceTTC : unitPriceHT;
-                                  return displayPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-                                })()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
-                                {(() => {
-                                  const priceTTC = calculatedPrice * 1.20; // TVA 20%
-                                  const displayPrice = showTTC ? priceTTC : calculatedPrice;
-                                  return displayPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-                                })()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {(() => {
-                                  const monthlyPriceHT = calculatedPrice / order.leasing_duration_months;
-                                  const monthlyPriceTTC = monthlyPriceHT * 1.20; // TVA 20%
-                                  const displayPrice = showTTC ? monthlyPriceTTC : monthlyPriceHT;
-                                  return displayPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-                                })()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {coefficient.toFixed(4)}
-                              </td>
-                            </tr>
-                          );
-                        })
+                                </td>
+                              );
+                            };
+
+                            const isQtyEditing = isEditing && editingItem?.field === 'quantity';
+                            const qtyValue = isQtyEditing ? editingItem!.value : row.quantity.toString();
+
+                            return (
+                              <tr key={row.productId} className={`hover:bg-gray-50 ${isSaving ? 'opacity-70' : ''}`}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div>
+                                    <div className="text-sm font-medium text-black">{row.product?.name || 'N/A'}</div>
+                                    {row.product?.reference && (
+                                      <div className="text-sm text-gray-500">Ref: {row.product.reference}</div>
+                                    )}
+                                  </div>
+                                </td>
+                                <EditableCell
+                                  field="purchase_price_ht"
+                                  displayValue={row.purchasePrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'}
+                                  onStartEdit={() => setEditingItem({ itemId: row.firstItemId, field: 'purchase_price_ht', value: row.purchasePrice.toString() })}
+                                />
+                                <EditableCell
+                                  field="margin_percent"
+                                  displayValue={row.margin.toFixed(2) + '%'}
+                                  onStartEdit={() => setEditingItem({ itemId: row.firstItemId, field: 'margin_percent', value: row.margin.toString() })}
+                                />
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {isQtyEditing ? (
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={qtyValue}
+                                      onChange={(e) => setEditingItem((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                                      onBlur={() => handleSaveQuantity(row.firstItemId, row.productId, qtyValue)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveQuantity(row.firstItemId, row.productId, qtyValue);
+                                        if (e.key === 'Escape') setEditingItem(null);
+                                      }}
+                                      className="w-16 px-2 py-1 border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                                    />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingItem({ itemId: row.firstItemId, field: 'quantity', value: row.quantity.toString() })}
+                                      disabled={isSaving}
+                                      className="hover:bg-marlon-green/10 rounded px-1 py-0.5 -mx-1 transition-colors disabled:opacity-50"
+                                      title="Cliquer pour modifier"
+                                    >
+                                      {row.quantity}
+                                    </button>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {(() => {
+                                    const unitPriceHT = unitCalc;
+                                    const unitPriceTTC = unitPriceHT * 1.20;
+                                    const displayPrice = showTTC ? unitPriceTTC : unitPriceHT;
+                                    return displayPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+                                  })()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
+                                  {(() => {
+                                    const priceTTC = row.totalCalculatedPrice * 1.20;
+                                    const displayPrice = showTTC ? priceTTC : row.totalCalculatedPrice;
+                                    return displayPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+                                  })()}
+                                </td>
+                                <EditableCell
+                                  field="monthly_price_ht"
+                                  displayValue={(showTTC ? monthlyPriceTTC : monthlyPriceHT).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'}
+                                  onStartEdit={() => setEditingItem({ itemId: row.firstItemId, field: 'monthly_price_ht', value: (showTTC ? monthlyPriceTTC : monthlyPriceHT).toFixed(2) })}
+                                  isMonthlyTTC={showTTC}
+                                />
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {row.coefficient.toFixed(4)}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()
                       ) : (
                         <tr>
                           <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
@@ -282,13 +510,35 @@ export default function OrderDetailClient({
               <div className="rounded-lg bg-white border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                   <h2 className="text-lg font-semibold text-black">Résumé</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Cliquez sur un montant pour modifier</p>
                 </div>
                 <div className="px-6 py-4 space-y-4">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Prix d&apos;achat HT:</span>
-                    <span className="font-medium text-black">
-                      {purchasePriceHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    </span>
+                    {editingSummary === 'purchase_price_ht' ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingSummaryValue}
+                        onChange={(e) => setEditingSummaryValue(e.target.value)}
+                        onBlur={() => handleSaveSummaryPrice('purchase_price_ht', editingSummaryValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveSummaryPrice('purchase_price_ht', editingSummaryValue);
+                          if (e.key === 'Escape') setEditingSummary(null);
+                        }}
+                        className="w-28 px-2 py-1 text-right border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingSummary('purchase_price_ht'); setEditingSummaryValue(purchasePriceHT.toFixed(2)); }}
+                        disabled={savingSummary}
+                        className="font-medium text-black hover:bg-marlon-green/10 rounded px-1 -mr-1 transition-colors disabled:opacity-50"
+                        title="Cliquer pour modifier"
+                      >
+                        {purchasePriceHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </button>
+                    )}
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Prix d&apos;achat TTC:</span>
@@ -296,28 +546,92 @@ export default function OrderDetailClient({
                       {purchasePriceTTC.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">CA Marlon HT:</span>
-                    <span className="font-medium text-black">
-                      {marlonRevenueHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    </span>
+                    {editingSummary === 'ca_marlon_ht' ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingSummaryValue}
+                        onChange={(e) => setEditingSummaryValue(e.target.value)}
+                        onBlur={() => handleSaveSummaryPrice('ca_marlon_ht', editingSummaryValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveSummaryPrice('ca_marlon_ht', editingSummaryValue);
+                          if (e.key === 'Escape') setEditingSummary(null);
+                        }}
+                        className="w-28 px-2 py-1 text-right border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingSummary('ca_marlon_ht'); setEditingSummaryValue(marlonRevenueHT.toFixed(2)); }}
+                        disabled={savingSummary}
+                        className="font-medium text-black hover:bg-marlon-green/10 rounded px-1 -mr-1 transition-colors disabled:opacity-50"
+                        title="Cliquer pour modifier"
+                      >
+                        {marlonRevenueHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </button>
+                    )}
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total HT:</span>
                     <span className="font-medium text-black">
-                      {parseFloat(order.total_amount_ht.toString()).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      {parseFloat(order.total_amount_ht?.toString() || '0').toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Prix mensuel TTC:</span>
-                    <span className="font-medium text-black">
-                      {monthlyPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    </span>
+                    {editingSummary === 'monthly_ttc' ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingSummaryValue}
+                        onChange={(e) => setEditingSummaryValue(e.target.value)}
+                        onBlur={() => handleSaveSummaryPrice('monthly_ttc', editingSummaryValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveSummaryPrice('monthly_ttc', editingSummaryValue);
+                          if (e.key === 'Escape') setEditingSummary(null);
+                        }}
+                        className="w-28 px-2 py-1 text-right border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingSummary('monthly_ttc'); setEditingSummaryValue(monthlyPrice.toFixed(2)); }}
+                        disabled={savingSummary}
+                        className="font-medium text-black hover:bg-marlon-green/10 rounded px-1 -mr-1 transition-colors disabled:opacity-50"
+                        title="Cliquer pour modifier"
+                      >
+                        {monthlyPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </button>
+                    )}
                   </div>
                   <div className="pt-4 border-t border-gray-200">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600">Durée:</span>
-                      <span className="font-medium text-black">{order.leasing_duration_months} mois</span>
+                      {editingDuration ? (
+                        <select
+                          autoFocus
+                          value={currentDuration}
+                          onChange={(e) => handleSaveDuration(parseInt(e.target.value, 10))}
+                          onBlur={() => setEditingDuration(false)}
+                          className="px-2 py-1 border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                        >
+                          {LEASING_DURATIONS.map((m) => (
+                            <option key={m} value={m}>{m} mois</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingDuration(true)}
+                          disabled={savingDuration}
+                          className="font-medium text-black hover:bg-marlon-green/10 rounded px-1 -mr-1 transition-colors disabled:opacity-50"
+                          title="Cliquer pour modifier"
+                        >
+                          {currentDuration} mois
+                        </button>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm mt-2">
                       <span className="text-gray-600">Équipements:</span>

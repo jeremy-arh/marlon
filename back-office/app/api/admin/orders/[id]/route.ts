@@ -309,3 +309,61 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const { data: order, error: fetchError } = await serviceClient
+      .from('orders')
+      .select('id')
+      .eq('id', params.id)
+      .single();
+
+    if (fetchError || !order) {
+      return NextResponse.json(
+        { error: 'Commande non trouvée' },
+        { status: 404 }
+      );
+    }
+
+    const { error: deleteError } = await serviceClient
+      .from('orders')
+      .delete()
+      .eq('id', params.id);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: deleteError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || 'Une erreur est survenue' },
+      { status: 500 }
+    );
+  }
+}
