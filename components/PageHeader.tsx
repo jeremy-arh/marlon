@@ -348,7 +348,6 @@ export default function PageHeader({ title }: PageHeaderProps) {
               {user ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 px-2">
-                    <Icon icon="mdi:account-circle" className="h-8 w-8 text-gray-400" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">
                         {user.user_metadata?.first_name

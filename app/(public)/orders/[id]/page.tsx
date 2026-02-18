@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import OrderDetailClient from './OrderDetailClient';
 
 export const metadata = { title: 'Détail commande' };
+export const dynamic = 'force-dynamic';
 
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();

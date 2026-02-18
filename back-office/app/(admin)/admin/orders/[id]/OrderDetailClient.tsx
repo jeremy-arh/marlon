@@ -59,15 +59,14 @@ export default function OrderDetailClient({
     : [currentDuration, 24, 36, 48, 60, 72, 84].sort((a, b) => a - b);
 
   const refreshOrderData = async () => {
-    // Fetch fresh data
-    const response = await fetch(`/api/admin/orders/${initialOrder.id}`);
+    // Fetch fresh data (no-store pour éviter le cache et afficher les prix mis à jour)
+    const response = await fetch(`/api/admin/orders/${initialOrder.id}`, { cache: 'no-store' });
     if (response.ok) {
       const data = await response.json();
       if (data.success) {
         setOrder(data.data);
       }
     }
-    // Also refresh the router to update server-side data
     router.refresh();
   };
 
@@ -89,6 +88,15 @@ export default function OrderDetailClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur');
+      // Mise à jour immédiate de l'état local avec les overrides retournés
+      if (data.data) {
+        setOrder((prev: any) => ({
+          ...prev,
+          override_purchase_price_ht: data.data.override_purchase_price_ht ?? prev.override_purchase_price_ht,
+          override_ca_marlon_ht: data.data.override_ca_marlon_ht ?? prev.override_ca_marlon_ht,
+          override_monthly_ttc: data.data.override_monthly_ttc ?? prev.override_monthly_ttc,
+        }));
+      }
       await refreshOrderData();
     } catch (err: any) {
       alert(err.message || 'Erreur lors de la mise à jour');

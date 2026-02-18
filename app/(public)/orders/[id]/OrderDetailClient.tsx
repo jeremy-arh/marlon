@@ -111,18 +111,30 @@ export default function OrderDetailClient({
     return null;
   };
 
-  const getStepStatus = (stepKey: string) => {
-    if (!tracking) return 'pending';
+  // Progression des statuts de commande — order.status est la source de vérité
+  const STATUS_PROGRESSION = ['draft', 'pending', 'sent_to_leaser', 'leaser_accepted', 'contract_uploaded', 'processing', 'shipped', 'delivered'];
+  const orderStatus = order?.status || 'draft';
+  const orderStatusIndex = STATUS_PROGRESSION.indexOf(orderStatus);
 
+  const getStepStatus = (stepKey: string) => {
+    // Brouillon ou En attente : aucune étape ne doit être cochée
+    if (orderStatus === 'draft' || orderStatus === 'pending') {
+      return 'pending';
+    }
     switch (stepKey) {
       case 'financing':
-        return tracking.financing_status || 'pending';
+        if (tracking?.financing_status && tracking.financing_status !== 'pending') return tracking.financing_status;
+        return orderStatusIndex >= STATUS_PROGRESSION.indexOf('sent_to_leaser') ? 'validated' : 'pending';
       case 'contract':
-        return tracking.contract_status || 'pending';
+        if (tracking?.contract_status && tracking.contract_status !== 'pending') return tracking.contract_status;
+        return orderStatusIndex >= STATUS_PROGRESSION.indexOf('contract_uploaded') ? 'signed' : 'pending';
       case 'delivery':
-        return tracking.delivery_status || 'pending';
+        if (tracking?.delivery_status && tracking.delivery_status !== 'pending') return tracking.delivery_status;
+        if (order?.status === 'delivered') return 'delivered';
+        if (order?.status === 'shipped') return 'in_transit';
+        return 'pending';
       case 'active':
-        return order?.status === 'active' ? 'active' : 'pending';
+        return (order?.status === 'active' || order?.status === 'delivered') ? 'active' : 'pending';
       default:
         return 'pending';
     }
@@ -130,7 +142,7 @@ export default function OrderDetailClient({
 
   const isStepCompleted = (stepKey: string) => {
     const status = getStepStatus(stepKey);
-    return ['validated', 'signed', 'delivered', 'active', 'completed'].includes(status);
+    return ['validated', 'signed', 'delivered', 'delivery_signed', 'active', 'completed'].includes(status);
   };
 
   const isStepActive = (stepKey: string) => {

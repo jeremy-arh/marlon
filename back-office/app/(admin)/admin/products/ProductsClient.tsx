@@ -379,6 +379,20 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
     router.refresh();
   };
 
+  const handleDelete = async (e: React.MouseEvent, product: any) => {
+    e.stopPropagation();
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le produit "${product.name}" ?${product.variantCount > 0 ? ` Les ${product.variantCount} variante(s) seront également supprimées.` : ''}`)) return;
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+      loadProducts();
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    }
+  };
+
   const toggleExpand = async (productId: string) => {
     const isCurrentlyExpanded = expandedProducts.has(productId);
     if (isCurrentlyExpanded) {
@@ -848,7 +862,11 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
                             >
                               <Icon icon="fluent:edit-24-filled" className="h-5 w-5" />
                             </button>
-                            <button className="text-red-600 hover:text-red-800" title="Supprimer">
+                            <button
+                              onClick={(e) => handleDelete(e, product)}
+                              className="text-red-600 hover:text-red-800"
+                              title="Supprimer"
+                            >
                               <Icon icon="meteor-icons:trash-can" className="h-5 w-5" />
                             </button>
                           </div>

@@ -531,7 +531,8 @@ export default function ProductForm({ product, parentProduct, onSuccess, onCance
         setLoading(false);
         // Clear success message after 3 seconds
         setTimeout(() => setSuccessMessage(null), 3000);
-        // Keep modal open for mass creation
+        // Refresh list so new product appears (modal stays open for mass creation)
+        onSuccess();
         return;
       }
 

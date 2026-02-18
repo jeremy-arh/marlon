@@ -16,10 +16,10 @@ export default async function CategoryPage({
 }) {
   const supabase = await createClient();
 
-  // Fetch category
+  // Fetch category (product_type is used for breadcrumb - e.g. Armoire belongs to Mobilier)
   const { data: category } = await supabase
     .from('categories')
-    .select('id, name, slug, description, image_url')
+    .select('id, name, slug, description, image_url, product_type')
     .eq('slug', params.slug)
     .single();
 
@@ -93,18 +93,19 @@ export default async function CategoryPage({
     ? Number(allCoefficients[0].coefficient) / 100
     : 0.035;
 
-  // Determine the most common product type in this category
+  // Use category's product_type for breadcrumb (source of truth). Fallback to most common from products.
   const productTypes = (products || []).map((p: any) => p.product_type).filter(Boolean);
   const typeCounts: Record<string, number> = {};
   productTypes.forEach((type: string) => {
     typeCounts[type] = (typeCounts[type] || 0) + 1;
   });
-  const mostCommonType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const mostCommonTypeFromProducts = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const productType = (category as any).product_type || mostCommonTypeFromProducts;
 
   // Get specialty name if category has one (for medical equipment)
   let specialtyId: string | null = null;
   let specialtyName: string | null = null;
-  if (mostCommonType === 'medical_equipment') {
+  if (productType === 'medical_equipment') {
     const { data: categorySpecialty } = await supabase
       .from('category_specialties')
       .select('specialty_id, specialties(name)')
@@ -121,7 +122,7 @@ export default async function CategoryPage({
   }
 
   // For IT categories: use category id for breadcrumb link (dropdown now shows categories)
-  const itCategoryId = mostCommonType === 'it_equipment' ? category.id : null;
+  const itCategoryId = productType === 'it_equipment' ? category.id : null;
 
   return (
     <CategoryProductsClient
@@ -130,7 +131,7 @@ export default async function CategoryPage({
       brands={brands || []}
       coefficient={Number(coefficient)}
       productMonthlyPrices={productMonthlyPrices}
-      productType={mostCommonType}
+      productType={productType}
       specialtyId={specialtyId}
       specialtyName={specialtyName}
       itCategoryId={itCategoryId}

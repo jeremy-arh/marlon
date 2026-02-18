@@ -296,7 +296,6 @@ export default function ClientSidebar() {
             )}
             
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
-              <Icon icon="mdi:account-circle" className="h-5 w-5 text-gray-400" />
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-gray-600 truncate block">
                   {user.user_metadata?.first_name 

@@ -331,3 +331,105 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: userRole } = await serviceClient
+      .from('user_roles')
+      .select('is_super_admin')
+      .eq('user_id', user.id)
+      .eq('is_super_admin', true)
+      .maybeSingle();
+
+    if (!userRole) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+
+    const productId = params.id;
+
+    // Vérifier si le produit est utilisé dans des commandes
+    const { data: orderItems } = await serviceClient
+      .from('order_items')
+      .select('id')
+      .eq('product_id', productId)
+      .limit(1);
+
+    if (orderItems && orderItems.length > 0) {
+      return NextResponse.json(
+        { error: 'Impossible de supprimer ce produit : il est utilisé dans des commandes.' },
+        { status: 400 }
+      );
+    }
+
+    // Si c'est un produit parent, supprimer d'abord les variantes (enfants)
+    const { data: variants } = await serviceClient
+      .from('products')
+      .select('id')
+      .eq('parent_product_id', productId);
+
+    if (variants && variants.length > 0) {
+      for (const variant of variants) {
+        // Vérifier que les variantes ne sont pas dans des commandes
+        const { data: variantInOrders } = await serviceClient
+          .from('order_items')
+          .select('id')
+          .eq('product_id', variant.id)
+          .limit(1);
+        if (variantInOrders && variantInOrders.length > 0) {
+          return NextResponse.json(
+            { error: 'Impossible de supprimer : une variante de ce produit est utilisée dans des commandes.' },
+            { status: 400 }
+          );
+        }
+        // Supprimer les données liées aux variantes
+        await serviceClient.from('product_categories').delete().eq('product_id', variant.id);
+        await serviceClient.from('product_images').delete().eq('product_id', variant.id);
+        await serviceClient.from('product_specialties').delete().eq('product_id', variant.id);
+        await serviceClient.from('product_variant_filters_junction').delete().eq('product_id', variant.id);
+        await serviceClient.from('product_documents').delete().eq('product_id', variant.id);
+        await serviceClient.from('cart_items').delete().eq('product_id', variant.id);
+        await serviceClient.from('products').delete().eq('id', variant.id);
+      }
+    }
+
+    // Supprimer les données liées au produit
+    await serviceClient.from('product_categories').delete().eq('product_id', productId);
+    await serviceClient.from('product_images').delete().eq('product_id', productId);
+    await serviceClient.from('product_specialties').delete().eq('product_id', productId);
+    await serviceClient.from('product_variant_filters_junction').delete().eq('product_id', productId);
+    await serviceClient.from('product_documents').delete().eq('product_id', productId);
+    await serviceClient.from('cart_items').delete().eq('product_id', productId);
+
+    const { error: deleteError } = await serviceClient
+      .from('products')
+      .delete()
+      .eq('id', productId);
+
+    if (deleteError) {
+      console.error('Error deleting product:', deleteError);
+      return NextResponse.json(
+        { error: deleteError.message || 'Erreur lors de la suppression' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('DELETE product error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Erreur lors de la suppression' },
+      { status: 500 }
+    );
+  }
+}

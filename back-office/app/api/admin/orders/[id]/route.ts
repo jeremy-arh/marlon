@@ -246,6 +246,55 @@ export async function PUT(
         userId: user.id,
       });
 
+      // Sync order_tracking pour que les steps (Financement, Contrat, Livraison, Actif) reflètent le statut
+      const { data: existingTracking } = await serviceClient
+        .from('order_tracking')
+        .select('*')
+        .eq('order_id', params.id)
+        .maybeSingle();
+
+      const statusProgression = ['draft', 'pending', 'sent_to_leaser', 'leaser_accepted', 'contract_uploaded', 'processing', 'shipped', 'delivered'];
+      const statusIndex = statusProgression.indexOf(status);
+      const trackingUpdates: Record<string, string> = {};
+
+      if (status === 'cancelled') {
+        // Pas de mise à jour du tracking pour annulé
+      } else if (status === 'draft' || status === 'pending') {
+        // En attente/brouillon : toutes les étapes à pending
+        trackingUpdates.financing_status = 'pending';
+        trackingUpdates.contract_status = 'pending';
+        trackingUpdates.delivery_status = 'pending';
+      } else {
+        // Progression : mettre à jour selon le statut
+        if (statusIndex >= statusProgression.indexOf('sent_to_leaser')) {
+          trackingUpdates.financing_status = existingTracking?.financing_status || 'validated';
+        }
+        if (statusIndex >= statusProgression.indexOf('contract_uploaded')) {
+          trackingUpdates.contract_status = existingTracking?.contract_status || 'signed';
+        }
+        if (status === 'shipped') {
+          trackingUpdates.delivery_status = 'in_transit';
+        } else if (status === 'delivered') {
+          trackingUpdates.delivery_status = 'delivered';
+        }
+      }
+
+      if (Object.keys(trackingUpdates).length > 0) {
+        if (existingTracking) {
+          await serviceClient
+            .from('order_tracking')
+            .update(trackingUpdates)
+            .eq('order_id', params.id);
+        } else {
+          await serviceClient
+            .from('order_tracking')
+            .insert({
+              order_id: params.id,
+              ...trackingUpdates,
+            });
+        }
+      }
+
       // If order is cancelled, delete all associated order_items (equipments)
       if (status === 'cancelled') {
         const { error: deleteError } = await serviceClient

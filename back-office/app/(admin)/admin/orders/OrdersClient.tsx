@@ -324,11 +324,18 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
 
   const OrderCard = ({ order, onDelete }: { order: any; onDelete: (e: React.MouseEvent, order: any) => void }) => {
     const equipmentCount = order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
-    const monthlyPrice = order.total_amount_ht / order.leasing_duration_months;
-    const purchasePriceTTC = order.order_items?.reduce((sum: number, item: any) => {
-      const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-      return sum + (purchasePrice * 1.2 * item.quantity);
-    }, 0) || 0;
+    const months = order.leasing_duration_months || 36;
+    const totalHT = parseFloat(order.total_amount_ht?.toString() || '0') || 0;
+    const purchasePriceHT = order.override_purchase_price_ht != null
+      ? parseFloat(order.override_purchase_price_ht)
+      : (order.order_items?.reduce((sum: number, item: any) => {
+          const p = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
+          return sum + (p * item.quantity);
+        }, 0) || 0);
+    const purchasePriceTTC = purchasePriceHT * 1.2;
+    const monthlyPrice = order.override_monthly_ttc != null
+      ? parseFloat(order.override_monthly_ttc)
+      : (totalHT / months) * 1.2;
 
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -544,16 +551,26 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
                   {filteredOrders && filteredOrders.length > 0 ? (
                     filteredOrders.map((order: any) => {
                       const equipmentCount = order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
-                      const monthlyPrice = order.total_amount_ht / order.leasing_duration_months;
-                      const purchasePriceTTC = order.order_items?.reduce((sum: number, item: any) => {
-                        const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-                        return sum + (purchasePrice * 1.2 * item.quantity);
-                      }, 0) || 0;
-                      const marlonRevenueHT = order.order_items?.reduce((sum: number, item: any) => {
-                        const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-                        const margin = parseFloat(item.product?.marlon_margin_percent?.toString() || '0');
-                        return sum + (purchasePrice * margin / 100 * item.quantity);
-                      }, 0) || 0;
+                      const months = order.leasing_duration_months || 36;
+                      const totalHT = parseFloat(order.total_amount_ht?.toString() || '0') || 0;
+                      // Utiliser les overrides si définis (cohérence avec la page détail), sinon valeurs calculées depuis order_items
+                      const purchasePriceHT = order.override_purchase_price_ht != null
+                        ? parseFloat(order.override_purchase_price_ht)
+                        : (order.order_items?.reduce((sum: number, item: any) => {
+                            const p = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
+                            return sum + (p * item.quantity);
+                          }, 0) || 0);
+                      const purchasePriceTTC = purchasePriceHT * 1.2;
+                      const marlonRevenueHT = order.override_ca_marlon_ht != null
+                        ? parseFloat(order.override_ca_marlon_ht)
+                        : (order.order_items?.reduce((sum: number, item: any) => {
+                            const p = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
+                            const m = parseFloat(item.margin_percent?.toString() || item.product?.marlon_margin_percent?.toString() || '0');
+                            return sum + (p * m / 100 * item.quantity);
+                          }, 0) || 0);
+                      const monthlyPrice = order.override_monthly_ttc != null
+                        ? parseFloat(order.override_monthly_ttc)
+                        : (totalHT / months) * 1.2;
 
                       return (
                         <tr 

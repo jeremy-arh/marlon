@@ -26,7 +26,7 @@ async function getProductCategory(productId: string) {
 
   const { data: productCategory } = await supabase
     .from('product_categories')
-    .select('category_id, categories(id, name, slug)')
+    .select('category_id, categories(id, name, slug, product_type)')
     .eq('product_id', productId)
     .limit(1)
     .single();
@@ -128,13 +128,13 @@ export default async function ProductPage({
   // If current product is a variant, use parent's category
   const categoryProductId = product.parent_product_id || product.id;
   const productCategory = await getProductCategory(categoryProductId);
-  const category = productCategory?.categories as { id: string; name: string; slug: string } | null;
+  const category = productCategory?.categories as { id: string; name: string; slug: string; product_type?: string } | null;
 
   // Get related products (excluding all group members)
   const relatedProducts = category ? await getRelatedProducts(category.id, product.id, groupProductIds) : [];
 
-  // Get product type and specialty for breadcrumb
-  let productType = product.product_type || null;
+  // Use category's product_type for breadcrumb (source of truth). Fallback to product's product_type.
+  let productType = (category?.product_type || product.product_type) || null;
   let specialtyId: string | null = null;
   let specialtyName: string | null = null;
 

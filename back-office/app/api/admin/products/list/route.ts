@@ -15,7 +15,7 @@ export async function GET() {
     
     // Fetch products with all relations as nested selects
     // This avoids .in() queries with hundreds of IDs which exceed URL length limits
-    const { data, error } = await serviceClient
+    const { data: productsData, error } = await serviceClient
       .from('products')
       .select(`
         *,
@@ -37,7 +37,24 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ success: true, data: data || [] });
+    // Count variants (child products) for each parent
+    const { data: childCountsData } = await serviceClient
+      .from('products')
+      .select('parent_product_id')
+      .not('parent_product_id', 'is', null);
+
+    const childCounts: Record<string, number> = {};
+    (childCountsData || []).forEach((c: any) => {
+      childCounts[c.parent_product_id] = (childCounts[c.parent_product_id] || 0) + 1;
+    });
+
+    const enrichedProducts = (productsData || []).map((product: any) => ({
+      ...product,
+      pricesByDuration: {} as Record<number, { monthly: number; total: number }>,
+      variantCount: childCounts[product.id] || 0,
+    }));
+
+    return NextResponse.json({ success: true, data: enrichedProducts });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message },
