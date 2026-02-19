@@ -60,6 +60,9 @@ export default function EmployeeDetailPage() {
   const [isEditingRole, setIsEditingRole] = useState(false);
   const [newRole, setNewRole] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -163,26 +166,26 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  const handleToggleStatus = async () => {
-    if (!employee || !organizationId) return;
+  const handleDeleteUser = async () => {
+    if (!employee) return;
 
-    setSaving(true);
+    setDeleting(true);
+    setErrorMessage(null);
     try {
-      const newStatus = employee.status === 'active' ? 'inactive' : 'active';
-      
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ status: newStatus })
-        .eq('user_id', employee.user_id)
-        .eq('organization_id', organizationId);
+      const response = await fetch(`/api/employees/${employee.user_id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
 
-      setEmployee({ ...employee, status: newStatus });
-    } catch (error) {
-      console.error('Error updating status:', error);
+      router.push('/employees');
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      setErrorMessage(error.message || 'Erreur lors de la suppression');
+      setShowDeleteConfirm(false);
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
   };
 
@@ -371,26 +374,55 @@ export default function EmployeeDetailPage() {
 
               {/* Actions */}
               {isAdmin && !isCurrentUser && (
-                <div className="border-t border-gray-100 pt-4 mt-4">
-                  <button
-                    onClick={handleToggleStatus}
-                    disabled={saving}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${
-                      employee.status === 'active'
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                        : 'bg-green-50 text-green-600 hover:bg-green-100'
-                    }`}
-                  >
-                    <Icon
-                      icon={employee.status === 'active' ? 'mdi:account-off' : 'mdi:account-check'}
-                      className="h-5 w-5"
-                    />
-                    {saving
-                      ? 'Enregistrement...'
-                      : employee.status === 'active'
-                      ? 'Désactiver le compte'
-                      : 'Activer le compte'}
-                  </button>
+                <div className="border-t border-gray-100 pt-4 mt-4 space-y-3">
+                  {errorMessage && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                      <Icon icon="mdi:alert-circle" className="h-4 w-4 flex-shrink-0" />
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  {!showDeleteConfirm ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                    >
+                      <Icon icon="mdi:delete" className="h-5 w-5" />
+                      Supprimer le compte
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-800 font-medium mb-1">
+                        Confirmer la suppression ?
+                      </p>
+                      <p className="text-xs text-red-600 mb-3">
+                        Cette action est irréversible. L&apos;utilisateur sera supprimé de l&apos;organisation.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeleteUser}
+                          disabled={deleting}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                        >
+                          {deleting ? (
+                            <>
+                              <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
+                              Suppression...
+                            </>
+                          ) : (
+                            'Confirmer'
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          disabled={deleting}
+                          className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

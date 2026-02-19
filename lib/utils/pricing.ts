@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { supabase } from '@/lib/supabase/client';
 
 export interface PriceCalculation {
   monthlyPrice: number;
@@ -26,7 +25,8 @@ export async function getLeaserCoefficient(
   amount: number,
   durationMonths: number
 ): Promise<number | null> {
-  // First get the duration ID from months
+  const supabase = await createClient();
+
   const { data: duration } = await supabase
     .from('leasing_durations')
     .select('id')
@@ -55,7 +55,6 @@ export async function getLeaserCoefficient(
 
 /**
  * Get coefficient for a specific tranche (min/max amount range)
- * This searches for the coefficient that matches the amount range
  */
 export async function getLeaserCoefficientByTranche(
   leaserId: string,
@@ -63,7 +62,8 @@ export async function getLeaserCoefficientByTranche(
   maxAmount: number,
   durationMonths: number
 ): Promise<number | null> {
-  // First get the duration ID from months
+  const supabase = await createClient();
+
   const { data: duration } = await supabase
     .from('leasing_durations')
     .select('id')
@@ -105,7 +105,6 @@ export async function calculateProductPrice(
   let coefficient: number | null;
 
   if (amountRange) {
-    // Use specific tranche
     coefficient = await getLeaserCoefficientByTranche(
       leaserId,
       amountRange.min,
@@ -113,7 +112,6 @@ export async function calculateProductPrice(
       durationMonths
     );
   } else {
-    // Use amount to find matching tranche
     coefficient = await getLeaserCoefficient(
       leaserId,
       sellingPrice,
@@ -144,7 +142,8 @@ export async function findTrancheForAmount(
   totalAmount: number,
   durationMonths: number
 ): Promise<{ min: number; max: number } | null> {
-  // First get the duration ID from months
+  const supabase = await createClient();
+
   const { data: duration } = await supabase
     .from('leasing_durations')
     .select('id')
@@ -178,23 +177,19 @@ export async function findTrancheForAmount(
 
 // Default coefficients by duration (in percentage) - used as fallback
 const DEFAULT_COEFFICIENTS: Record<number, number> = {
-  24: 5.0,   // 5%
-  36: 3.8,   // 3.8%
-  48: 3.2,   // 3.2%
-  60: 2.8,   // 2.8%
+  24: 5.0,
+  36: 3.8,
+  48: 3.2,
+  60: 2.8,
 };
 
-/**
- * Get default coefficient for a duration
- */
 function getDefaultCoefficient(durationMonths: number): number {
-  return DEFAULT_COEFFICIENTS[durationMonths] || 3.5; // Default 3.5% fallback
+  return DEFAULT_COEFFICIENTS[durationMonths] || 3.5;
 }
 
 /**
  * Recalculate all product prices based on total order amount
- * This is used when submitting an order - all prices are recalculated
- * based on the total amount's tranche, not individual product amounts
+ * Uses the total amount's tranche, not individual product amounts
  */
 export async function recalculateOrderPrices(
   orderItems: Array<{
@@ -214,10 +209,8 @@ export async function recalculateOrderPrices(
   calculatedPrice: number;
   coefficient: number;
 }>> {
-  // Find tranche for total amount
   const tranche = await findTrancheForAmount(leaserId, totalAmount, durationMonths);
 
-  // Get the coefficient - either from DB or use default
   let coefficientValue: number | null = null;
   
   if (tranche) {
@@ -229,7 +222,6 @@ export async function recalculateOrderPrices(
     );
   }
   
-  // Use default coefficient if not found in DB
   const finalCoefficient = coefficientValue ?? getDefaultCoefficient(durationMonths);
 
   const recalculatedItems = orderItems.map((item) => {

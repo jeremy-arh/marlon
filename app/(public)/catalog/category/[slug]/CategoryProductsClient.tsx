@@ -119,12 +119,12 @@ export default function CategoryProductsClient({
       }
     }
 
-    // Price filter
-    const monthlyPrice = calculateMonthlyPrice(product);
-    if (minPrice && monthlyPrice < parseFloat(minPrice)) {
+    // Price filter (compared in TTC)
+    const monthlyPriceTTC = calculateMonthlyPrice(product) * 1.2;
+    if (minPrice && monthlyPriceTTC < parseFloat(minPrice)) {
       return false;
     }
-    if (maxPrice && monthlyPrice > parseFloat(maxPrice)) {
+    if (maxPrice && monthlyPriceTTC > parseFloat(maxPrice)) {
       return false;
     }
 
@@ -214,7 +214,7 @@ export default function CategoryProductsClient({
 
         {/* Price filter */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Prix:</span>
+          <span className="text-sm text-gray-600">Prix (€ TTC) :</span>
           <input
             type="number"
             value={minPrice}
@@ -318,7 +318,7 @@ export default function CategoryProductsClient({
 
               {/* Price filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Prix mensuel (€ HT)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Prix mensuel (€ TTC)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -371,7 +371,7 @@ export default function CategoryProductsClient({
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
             {filteredProducts.map((product) => {
               const imageUrl = getProductImage(product);
-              const monthlyPrice = calculateMonthlyPrice(product);
+              const monthlyPrice = calculateMonthlyPrice(product) * 1.2;
 
               return (
                 <Link

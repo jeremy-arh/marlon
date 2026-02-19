@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { calculateProductPrice } from '@/lib/utils/pricing';
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +11,6 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Fetch product
     const { data: product } = await supabase
       .from('products')
       .select('purchase_price_ht, marlon_margin_percent, default_leaser_id')
@@ -33,26 +31,50 @@ export async function GET(
       );
     }
 
-    // Calculate price
-    const price = await calculateProductPrice(
-      parseFloat(product.purchase_price_ht.toString()),
-      parseFloat(product.marlon_margin_percent.toString()),
-      product.default_leaser_id,
-      durationMonths
-    );
+    const purchasePrice = parseFloat(product.purchase_price_ht.toString());
+    const marginPercent = parseFloat(product.marlon_margin_percent.toString());
+    const sellingPrice = purchasePrice * (1 + marginPercent / 100);
 
-    if (!price) {
+    const { data: duration } = await supabase
+      .from('leasing_durations')
+      .select('id')
+      .eq('months', durationMonths)
+      .single();
+
+    if (!duration) {
       return NextResponse.json(
-        { error: 'Price calculation failed' },
+        { error: 'Invalid duration' },
         { status: 400 }
       );
     }
 
+    const { data: coeffData } = await supabase
+      .from('leaser_coefficients')
+      .select('coefficient')
+      .eq('leaser_id', product.default_leaser_id)
+      .eq('duration_id', duration.id)
+      .gte('max_amount', sellingPrice)
+      .lte('min_amount', sellingPrice)
+      .single();
+
+    if (!coeffData) {
+      return NextResponse.json(
+        { error: 'No coefficient found for this configuration' },
+        { status: 400 }
+      );
+    }
+
+    const coefficient = parseFloat(coeffData.coefficient.toString());
+    const monthlyPrice = (sellingPrice * coefficient) / 100;
+    const totalPrice = monthlyPrice * durationMonths;
+
     return NextResponse.json({
       success: true,
       price: {
-        monthlyPrice: price.monthlyPrice,
-        totalPrice: price.totalPrice,
+        monthlyPrice,
+        totalPrice,
+        coefficient,
+        sellingPrice,
       },
     });
   } catch (error: any) {

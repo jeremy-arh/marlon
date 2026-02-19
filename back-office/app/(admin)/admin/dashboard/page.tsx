@@ -36,7 +36,8 @@ export default async function AdminDashboardPage() {
 
   const { count: productsCount } = await serviceClient
     .from('products')
-    .select('*', { count: 'exact', head: true });
+    .select('*', { count: 'exact', head: true })
+    .is('parent_product_id', null);
 
   const { count: pendingOrdersCount } = await serviceClient
     .from('orders')

@@ -157,19 +157,31 @@ export default async function ProductPage({
   // For IT products: use category id for breadcrumb link (dropdown now shows categories)
   const itCategoryId = category && productType === 'it_equipment' ? category.id : null;
 
-  // Load ALL leaser coefficients once for price calculations
-  const { data: allCoefficients } = await supabase
-    .from('leaser_coefficients')
-    .select('coefficient, min_amount, max_amount, duration_id, leasing_durations(months)')
-    .order('coefficient', { ascending: true });
+  // Load leaser coefficients for this product's default leaser
+  const defaultLeaserId = product.default_leaser_id;
+  let allCoefficients: any[] | null = null;
 
-  // Helper: find the best coefficient for a given price HT
+  if (defaultLeaserId) {
+    const { data } = await supabase
+      .from('leaser_coefficients')
+      .select('coefficient, min_amount, max_amount, duration_id, leasing_durations(months)')
+      .eq('leaser_id', defaultLeaserId)
+      .order('coefficient', { ascending: true });
+    allCoefficients = data;
+  }
+
+  // Helper: find the best (cheapest) coefficient for a given price HT
   const findCoefficient = (priceHT: number): number => {
     if (allCoefficients && allCoefficients.length > 0) {
-      const matching = allCoefficients.find(
+      const matching = allCoefficients.filter(
         (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
       );
-      if (matching) return Number(matching.coefficient) / 100;
+      if (matching.length > 0) {
+        const cheapest = matching.reduce((min: any, c: any) =>
+          Number(c.coefficient) < Number(min.coefficient) ? c : min
+        );
+        return Number(cheapest.coefficient) / 100;
+      }
       return Number(allCoefficients[0].coefficient) / 100;
     }
     return 0.05;

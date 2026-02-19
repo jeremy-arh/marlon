@@ -67,7 +67,7 @@ export default function TrackingTab({ orderId, order, initialTracking, onUpdate 
       signed: !!(tracking.signed_contract_url && tracking.contract_number),
       delivery: tracking.delivery_status === 'delivered' || tracking.delivery_status === 'delivery_signed',
       'in-progress': tracking.contract_status === 'signed',
-      end: !!tracking.contract_end_date,
+      end: !!(tracking.contract_start_date && tracking.contract_end_date),
     };
   }, [trackingData]);
 
@@ -82,7 +82,7 @@ export default function TrackingTab({ orderId, order, initialTracking, onUpdate 
       signed: !!(tracking.signed_contract_url || tracking.contract_number || tracking.docusign_link),
       delivery: !!tracking.delivery_status && tracking.delivery_status !== 'pending',
       'in-progress': !!tracking.contract_status && tracking.contract_status !== 'pending',
-      end: !!tracking.contract_end_date,
+      end: !!(tracking.contract_start_date || tracking.contract_end_date),
     };
   }, [trackingData]);
 
@@ -202,7 +202,7 @@ export default function TrackingTab({ orderId, order, initialTracking, onUpdate 
           <ContractInProgressTab orderId={orderId} initialTracking={trackingData} onUpdate={handleTrackingUpdate} />
         )}
         {activeSubTab === 'end' && (
-          <ContractEndTab orderId={orderId} initialTracking={trackingData} onUpdate={handleTrackingUpdate} />
+          <ContractEndTab orderId={orderId} order={order} initialTracking={trackingData} onUpdate={handleTrackingUpdate} />
         )}
       </div>
     </div>

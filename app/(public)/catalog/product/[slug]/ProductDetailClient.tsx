@@ -176,8 +176,8 @@ export default function ProductDetailClient({
     return priceHT * coefficient;
   };
 
-  // Determine price to display
-  const displayPrice = currentMonthlyPrice;
+  // Determine price to display (TTC = HT * 1.20 for 20% TVA)
+  const displayPrice = currentMonthlyPrice * 1.2;
   const startingPrice = cheapestMonthlyPrice ?? currentMonthlyPrice;
 
   const handleAddToCart = async () => {
@@ -347,13 +347,13 @@ export default function ProductDetailClient({
                 {hasVariants ? (
                   <>
                     <span className="text-gray-600">Prix : </span>
-                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € HT</span>
+                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € TTC</span>
                     <span className="text-gray-600"> /mois</span>
                   </>
                 ) : (
                   <>
                     <span className="text-gray-600">A partir de : </span>
-                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € HT</span>
+                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € TTC</span>
                     <span className="text-gray-600"> /mois</span>
                   </>
                 )}
@@ -464,10 +464,11 @@ export default function ProductDetailClient({
             <div className="flex gap-4 overflow-x-auto pb-4">
               {relatedProducts.map((relatedProduct) => {
                 const relatedImageUrl = getProductImage(relatedProduct);
-                const relatedPrice = calculateMonthlyPrice(
+                const relatedPriceHT = calculateMonthlyPrice(
                   relatedProduct.purchase_price_ht, 
                   relatedProduct.marlon_margin_percent
                 );
+                const relatedPrice = relatedPriceHT * 1.2;
 
                 return (
                   <Link
@@ -493,7 +494,7 @@ export default function ProductDetailClient({
                       </h3>
                       <p className="text-xs text-gray-500">à partir de</p>
                       <p className="text-sm font-bold text-marlon-green">
-                        {relatedPrice.toFixed(2)}€ HT <span className="font-normal text-gray-500">/mois</span>
+                        {relatedPrice.toFixed(2)}€ TTC <span className="font-normal text-gray-500">/mois</span>
                       </p>
                     </div>
                   </Link>
@@ -523,7 +524,7 @@ export default function ProductDetailClient({
               {hasVariants ? 'Prix' : 'A partir de'}
             </p>
             <p className="text-lg font-bold text-gray-900 leading-tight">
-              {displayPrice.toFixed(2)} € <span className="text-sm font-normal text-gray-500">HT /mois</span>
+              {displayPrice.toFixed(2)} € <span className="text-sm font-normal text-gray-500">TTC /mois</span>
             </p>
           </div>
           <button

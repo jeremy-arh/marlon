@@ -474,7 +474,8 @@ export default function CatalogClient({
               .map((product) => {
               const cheapestImage = productCheapestImages[product.id];
               const imageUrl = cheapestImage || getProductImage(product);
-              const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              const monthlyPriceHT = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              const monthlyPrice = monthlyPriceHT * 1.2;
               const targetSlug = productCheapestSlug[product.id] || product.slug || product.id;
 
               return (
@@ -529,7 +530,8 @@ export default function CatalogClient({
               .map((product) => {
               const cheapestImage = productCheapestImages[product.id];
               const imageUrl = cheapestImage || getProductImage(product);
-              const monthlyPrice = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              const monthlyPriceHT = productCheapestPrices[product.id] ?? calculateMonthlyPrice(product);
+              const monthlyPrice = monthlyPriceHT * 1.2;
               const targetSlug = productCheapestSlug[product.id] || product.slug || product.id;
 
               return (

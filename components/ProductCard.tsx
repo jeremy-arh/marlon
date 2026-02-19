@@ -81,7 +81,7 @@ export default function ProductCard({ product, defaultDurationMonths }: ProductC
             <>
               <p className="text-[9px] text-gray-500">à partir de</p>
               <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
-                {price.monthly.toLocaleString('fr-FR', {
+                {(price.monthly * 1.2).toLocaleString('fr-FR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })} € <span className="font-normal text-gray-500">/mois</span>

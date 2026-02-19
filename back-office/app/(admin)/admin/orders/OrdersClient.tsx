@@ -300,15 +300,19 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
 
   // Calculate stats
   const totalOrders = filteredOrders?.length || 0;
-  const totalRevenue = filteredOrders?.reduce((sum, order) => sum + parseFloat(order.total_amount_ht.toString()), 0) || 0;
-  const marlonRevenue = filteredOrders?.reduce((sum, order) => {
-    const orderItemsRevenue = order.order_items?.reduce((itemSum: number, item: any) => {
-      const purchasePrice = parseFloat(item.product?.purchase_price_ht?.toString() || '0');
-      const margin = parseFloat(item.product?.marlon_margin_percent?.toString() || '0');
-      return itemSum + (purchasePrice * margin / 100 * item.quantity);
+  const deliveredOrders = filteredOrders?.filter(o => o.status === 'delivered') || [];
+
+  const getOrderMarlonHT = (order: any) => {
+    if (order.override_ca_marlon_ht != null) return parseFloat(order.override_ca_marlon_ht);
+    return order.order_items?.reduce((sum: number, item: any) => {
+      const p = parseFloat(item.purchase_price_ht?.toString() || item.product?.purchase_price_ht?.toString() || '0');
+      const m = parseFloat(item.margin_percent?.toString() || item.product?.marlon_margin_percent?.toString() || '0');
+      return sum + (p * m / 100 * item.quantity);
     }, 0) || 0;
-    return sum + orderItemsRevenue;
-  }, 0) || 0;
+  };
+
+  const totalRevenue = deliveredOrders.reduce((sum, order) => sum + parseFloat(order.total_amount_ht?.toString() || '0'), 0);
+  const marlonRevenue = deliveredOrders.reduce((sum, order) => sum + getOrderMarlonHT(order), 0);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';

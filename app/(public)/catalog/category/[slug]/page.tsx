@@ -62,29 +62,39 @@ export default async function CategoryPage({
     .select('id, name')
     .order('name');
 
-  // Load ALL leaser coefficients for price calculations (same as product detail page)
+  // Load ALL leaser coefficients for price calculations
   const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
-    .select('coefficient, min_amount, max_amount')
+    .select('leaser_id, coefficient, min_amount, max_amount')
     .order('coefficient', { ascending: true });
 
-  // Helper: find the best coefficient for a given price HT (divide by 100 since DB stores as percentage)
-  const findCoefficient = (priceHT: number): number => {
+  // Helper: find the best (cheapest) coefficient for a given price HT and leaser
+  const findCoefficient = (priceHT: number, leaserId?: string | null): number => {
     if (allCoefficients && allCoefficients.length > 0) {
-      const matching = allCoefficients.find(
+      const pool = leaserId
+        ? allCoefficients.filter((c: any) => c.leaser_id === leaserId)
+        : allCoefficients;
+      const source = pool.length > 0 ? pool : allCoefficients;
+
+      const matching = source.filter(
         (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
       );
-      if (matching) return Number(matching.coefficient) / 100;
-      return Number(allCoefficients[0].coefficient) / 100;
+      if (matching.length > 0) {
+        const cheapest = matching.reduce((min: any, c: any) =>
+          Number(c.coefficient) < Number(min.coefficient) ? c : min
+        );
+        return Number(cheapest.coefficient) / 100;
+      }
+      return Number(source[0].coefficient) / 100;
     }
     return 0.035;
   };
 
-  // Pre-calculate monthly prices for each product (using correct coefficient per price range)
+  // Pre-calculate monthly prices for each product (using correct coefficient per leaser + price range)
   const productMonthlyPrices: Record<string, number> = {};
   for (const product of (products || [])) {
     const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
-    const coef = findCoefficient(priceHT);
+    const coef = findCoefficient(priceHT, product.default_leaser_id);
     productMonthlyPrices[product.id] = priceHT * coef;
   }
 

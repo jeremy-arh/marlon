@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import Icon from '@/components/Icon';
@@ -34,7 +34,6 @@ interface DeliveryAddress {
   instructions?: string;
 }
 
-// Default coefficients
 const DEFAULT_COEFFICIENTS: Record<number, number> = {
   24: 0.05,
   36: 0.038,
@@ -52,7 +51,6 @@ const DURATION_OPTIONS = [
   { value: 84, label: '84 mois' },
 ];
 
-// Calculate price locally
 const calculateLocalPrice = (item: CartItem, durationMonths: number) => {
   if (!item.products) return { monthlyHT: 0, monthlyTTC: 0 };
   
@@ -80,6 +78,7 @@ export default function CheckoutPage() {
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [prices, setPrices] = useState<Record<string, { monthlyHT: number; monthlyTTC: number }>>({});
 
   // Step 1: Company data
   const [companyData, setCompanyData] = useState({
@@ -129,6 +128,40 @@ export default function CheckoutPage() {
     tax_liasse_url: '',
     business_plan_url: '',
   });
+
+  const loadPricesFromApi = useCallback(async (items: CartItem[], duration: number) => {
+    const localPrices: Record<string, { monthlyHT: number; monthlyTTC: number }> = {};
+    items.forEach((item) => {
+      if (item.products) {
+        localPrices[item.id] = calculateLocalPrice(item, duration);
+      }
+    });
+    setPrices(localPrices);
+
+    await Promise.all(
+      items.map(async (item) => {
+        if (!item.products) return;
+        try {
+          const res = await fetch(`/api/products/${item.products.id}/price?duration=${duration}`);
+          const data = await res.json();
+          if (data.success && data.price) {
+            const qty = item.quantity || 1;
+            const monthlyHT = data.price.monthlyPrice * qty;
+            const monthlyTTC = monthlyHT * 1.2;
+            setPrices((prev) => ({ ...prev, [item.id]: { monthlyHT, monthlyTTC } }));
+          }
+        } catch {
+          // local fallback already set
+        }
+      })
+    );
+  }, []);
+
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      loadPricesFromApi(cartItems, selectedDuration);
+    }
+  }, [cartItems, selectedDuration, loadPricesFromApi]);
 
   useEffect(() => {
     fetchCartAndUserData();
@@ -212,10 +245,9 @@ export default function CheckoutPage() {
     }
   };
 
-  // Calculate totals
   const totals = cartItems.reduce(
     (acc, item) => {
-      const price = calculateLocalPrice(item, selectedDuration);
+      const price = prices[item.id] || calculateLocalPrice(item, selectedDuration);
       return {
         monthlyHT: acc.monthlyHT + price.monthlyHT,
         monthlyTTC: acc.monthlyTTC + price.monthlyTTC,
@@ -1306,7 +1338,7 @@ export default function CheckoutPage() {
                 <div className="space-y-4 mb-6">
                   {cartItems.map((item) => {
                     const product = item.products;
-                    const price = calculateLocalPrice(item, selectedDuration);
+                    const price = prices[item.id] || calculateLocalPrice(item, selectedDuration);
                     const mainImage = product?.product_images?.sort((a, b) => a.order_index - b.order_index)[0]?.image_url;
 
                     return (
@@ -1427,7 +1459,7 @@ export default function CheckoutPage() {
             <div className="space-y-3 mb-4">
               {cartItems.map((item) => {
                 const product = item.products;
-                const price = calculateLocalPrice(item, selectedDuration);
+                const price = prices[item.id] || calculateLocalPrice(item, selectedDuration);
                 const mainImage = product?.product_images?.sort((a, b) => a.order_index - b.order_index)[0]?.image_url;
 
                 return (

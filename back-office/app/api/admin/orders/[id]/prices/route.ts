@@ -32,15 +32,16 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { total_purchase_price_ht, total_ca_marlon_ht, total_monthly_ttc } = body;
+    const { total_purchase_price_ht, total_ca_marlon_ht, total_monthly_ttc, total_amount_ht } = body;
 
     if (
       total_purchase_price_ht === undefined &&
       total_ca_marlon_ht === undefined &&
-      total_monthly_ttc === undefined
+      total_monthly_ttc === undefined &&
+      total_amount_ht === undefined
     ) {
       return NextResponse.json(
-        { error: 'Fournissez au moins un champ: total_purchase_price_ht, total_ca_marlon_ht ou total_monthly_ttc' },
+        { error: 'Fournissez au moins un champ: total_purchase_price_ht, total_ca_marlon_ht, total_monthly_ttc ou total_amount_ht' },
         { status: 400 }
       );
     }
@@ -78,6 +79,13 @@ export async function PATCH(
       }
       updates.override_monthly_ttc = val;
     }
+    if (total_amount_ht !== undefined) {
+      const val = parseFloat(total_amount_ht);
+      if (isNaN(val) || val < 0) {
+        return NextResponse.json({ error: 'Total HT invalide' }, { status: 400 });
+      }
+      updates.total_amount_ht = val;
+    }
 
     const { error } = await serviceClient
       .from('orders')
@@ -92,6 +100,7 @@ export async function PATCH(
     if (updates.override_purchase_price_ht !== undefined) changes.push(`Prix d'achat → ${updates.override_purchase_price_ht.toFixed(2)} €`);
     if (updates.override_ca_marlon_ht !== undefined) changes.push(`CA Marlon → ${updates.override_ca_marlon_ht.toFixed(2)} €`);
     if (updates.override_monthly_ttc !== undefined) changes.push(`Prix mensuel → ${updates.override_monthly_ttc.toFixed(2)} € TTC`);
+    if (updates.total_amount_ht !== undefined) changes.push(`Total HT → ${updates.total_amount_ht.toFixed(2)} €`);
 
     await createOrderLog({
       orderId: params.id,

@@ -87,6 +87,7 @@ export default async function CatalogPage() {
       description,
       purchase_price_ht,
       marlon_margin_percent,
+      default_leaser_id,
       brand_id,
       product_type,
       variant_data,
@@ -126,6 +127,7 @@ export default async function CatalogPage() {
       description,
       purchase_price_ht,
       marlon_margin_percent,
+      default_leaser_id,
       brand_id,
       product_type,
       brands(id, name),
@@ -146,6 +148,7 @@ export default async function CatalogPage() {
       description,
       purchase_price_ht,
       marlon_margin_percent,
+      default_leaser_id,
       brand_id,
       product_type,
       brands(id, name),
@@ -158,18 +161,27 @@ export default async function CatalogPage() {
   // Get all leaser coefficients for price calculations
   const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
-    .select('coefficient, min_amount, max_amount')
+    .select('leaser_id, coefficient, min_amount, max_amount')
     .order('coefficient', { ascending: true });
 
-  // Helper: find the best coefficient for a given price HT
-  const findCoefficient = (priceHT: number): number => {
+  // Helper: find the best (cheapest) coefficient for a given price HT and leaser
+  const findCoefficient = (priceHT: number, leaserId?: string | null): number => {
     if (allCoefficients && allCoefficients.length > 0) {
-      const matching = allCoefficients.find(
+      const pool = leaserId
+        ? allCoefficients.filter((c: any) => c.leaser_id === leaserId)
+        : allCoefficients;
+      const source = pool.length > 0 ? pool : allCoefficients;
+
+      const matching = source.filter(
         (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
       );
-      if (matching) return Number(matching.coefficient) / 100;
-      // Fallback: lowest coefficient
-      return Number(allCoefficients[0].coefficient) / 100;
+      if (matching.length > 0) {
+        const cheapest = matching.reduce((min: any, c: any) =>
+          Number(c.coefficient) < Number(min.coefficient) ? c : min
+        );
+        return Number(cheapest.coefficient) / 100;
+      }
+      return Number(source[0].coefficient) / 100;
     }
     return 0.035;
   };
@@ -185,7 +197,7 @@ export default async function CatalogPage() {
   if (itProductIds.length > 0) {
     const { data: children } = await supabase
       .from('products')
-      .select('id, slug, parent_product_id, purchase_price_ht, marlon_margin_percent, variant_data, product_images(image_url, order_index)')
+      .select('id, slug, parent_product_id, purchase_price_ht, marlon_margin_percent, default_leaser_id, variant_data, product_images(image_url, order_index)')
       .in('parent_product_id', itProductIds);
     allChildProducts = children || [];
   }
@@ -201,7 +213,7 @@ export default async function CatalogPage() {
     
     // Main product price
     const mainHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
-    const mainCoef = findCoefficient(mainHT);
+    const mainCoef = findCoefficient(mainHT, product.default_leaser_id);
     const mainImage = product.product_images?.length > 0
       ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
       : null;
@@ -212,7 +224,7 @@ export default async function CatalogPage() {
     for (const child of children) {
       if (child.purchase_price_ht && child.marlon_margin_percent) {
         const cHT = Number(child.purchase_price_ht) * (1 + Number(child.marlon_margin_percent) / 100);
-        const cCoef = findCoefficient(cHT);
+        const cCoef = findCoefficient(cHT, child.default_leaser_id || product.default_leaser_id);
         const cImage = child.product_images?.length > 0
           ? [...child.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
           : null;
@@ -236,7 +248,7 @@ export default async function CatalogPage() {
   // Calculate prices for medical products
   for (const product of (medicalProducts || [])) {
     const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
-    const coef = findCoefficient(priceHT);
+    const coef = findCoefficient(priceHT, product.default_leaser_id);
     const monthlyPrice = priceHT * coef;
     const image = product.product_images?.length > 0
       ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url
@@ -251,7 +263,7 @@ export default async function CatalogPage() {
   // Calculate prices for furniture products
   for (const product of (furnitureProducts || [])) {
     const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
-    const coef = findCoefficient(priceHT);
+    const coef = findCoefficient(priceHT, product.default_leaser_id);
     const monthlyPrice = priceHT * coef;
     const image = product.product_images?.length > 0
       ? [...product.product_images].sort((a: any, b: any) => a.order_index - b.order_index)[0].image_url

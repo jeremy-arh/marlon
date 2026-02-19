@@ -47,7 +47,7 @@ export default function OrderDetailClient({
   const [deleting, setDeleting] = useState(false);
   const [editingItem, setEditingItem] = useState<{ itemId: string; field: 'purchase_price_ht' | 'margin_percent' | 'monthly_price_ht' | 'quantity'; value: string } | null>(null);
   const [savingItem, setSavingItem] = useState<string | null>(null);
-  const [editingSummary, setEditingSummary] = useState<'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc' | null>(null);
+  const [editingSummary, setEditingSummary] = useState<'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc' | 'total_ht' | null>(null);
   const [editingSummaryValue, setEditingSummaryValue] = useState('');
   const [savingSummary, setSavingSummary] = useState(false);
   const [editingDuration, setEditingDuration] = useState(false);
@@ -70,7 +70,7 @@ export default function OrderDetailClient({
     router.refresh();
   };
 
-  const handleSaveSummaryPrice = async (field: 'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc', value: string) => {
+  const handleSaveSummaryPrice = async (field: 'purchase_price_ht' | 'ca_marlon_ht' | 'monthly_ttc' | 'total_ht', value: string) => {
     const cleaned = value.replace(/\s/g, '').replace(',', '.').replace('€', '').trim();
     const num = parseFloat(cleaned);
     if (isNaN(num) || num < 0) return;
@@ -80,6 +80,7 @@ export default function OrderDetailClient({
       const body: Record<string, number> = {};
       if (field === 'purchase_price_ht') body.total_purchase_price_ht = num;
       else if (field === 'ca_marlon_ht') body.total_ca_marlon_ht = num;
+      else if (field === 'total_ht') body.total_amount_ht = num;
       else body.total_monthly_ttc = num;
       const res = await fetch(`/api/admin/orders/${order.id}/prices`, {
         method: 'PATCH',
@@ -92,6 +93,7 @@ export default function OrderDetailClient({
       if (data.data) {
         setOrder((prev: any) => ({
           ...prev,
+          total_amount_ht: data.data.total_amount_ht ?? prev.total_amount_ht,
           override_purchase_price_ht: data.data.override_purchase_price_ht ?? prev.override_purchase_price_ht,
           override_ca_marlon_ht: data.data.override_ca_marlon_ht ?? prev.override_ca_marlon_ht,
           override_monthly_ttc: data.data.override_monthly_ttc ?? prev.override_monthly_ttc,
@@ -581,10 +583,37 @@ export default function OrderDetailClient({
                       </button>
                     )}
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Total HT:</span>
+                    {editingSummary === 'total_ht' ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingSummaryValue}
+                        onChange={(e) => setEditingSummaryValue(e.target.value)}
+                        onBlur={() => handleSaveSummaryPrice('total_ht', editingSummaryValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveSummaryPrice('total_ht', editingSummaryValue);
+                          if (e.key === 'Escape') setEditingSummary(null);
+                        }}
+                        className="w-28 px-2 py-1 text-right border border-marlon-green rounded text-black focus:outline-none focus:ring-2 focus:ring-marlon-green"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingSummary('total_ht'); setEditingSummaryValue(parseFloat(order.total_amount_ht?.toString() || '0').toFixed(2)); }}
+                        disabled={savingSummary}
+                        className="font-medium text-black hover:bg-marlon-green/10 rounded px-1 -mr-1 transition-colors disabled:opacity-50"
+                        title="Cliquer pour modifier"
+                      >
+                        {parseFloat(order.total_amount_ht?.toString() || '0').toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total TTC:</span>
                     <span className="font-medium text-black">
-                      {parseFloat(order.total_amount_ht?.toString() || '0').toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      {(parseFloat(order.total_amount_ht?.toString() || '0') * 1.2).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
