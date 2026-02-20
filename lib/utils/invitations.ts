@@ -29,7 +29,7 @@ export async function createInvitation(
   }
 
   // TODO: Send email with invitation link using SendGrid
-  const invitationLink = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation/${token}`;
+  const invitationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr'}/accept-invitation/${token}`;
 
   return { data: { ...data, invitationLink }, error: null };
 }

@@ -132,14 +132,7 @@ export async function POST(
       );
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!siteUrl) {
-      console.error('NEXT_PUBLIC_APP_URL is not configured');
-      return NextResponse.json(
-        { error: 'Configuration serveur manquante. Contactez l\'administrateur.' },
-        { status: 500 }
-      );
-    }
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr';
 
     const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo: `${siteUrl}/complete-invitation?token=${token}`,

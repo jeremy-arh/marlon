@@ -227,14 +227,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!siteUrl) {
-      console.error('NEXT_PUBLIC_APP_URL is not configured');
-      return NextResponse.json(
-        { error: 'Configuration serveur manquante. Contactez l\'administrateur.' },
-        { status: 500 }
-      );
-    }
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr';
 
     // Envoyer l'invitation par email via Supabase Auth
     const { data: inviteData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(normalizedEmail, {

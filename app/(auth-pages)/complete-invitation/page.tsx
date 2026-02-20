@@ -243,7 +243,7 @@ function CompleteInvitationContent() {
 
       // Rediriger les super admins vers le back-office (pas l'app)
       const isSuperAdmin = data.is_super_admin ?? invitation?.is_super_admin ?? user?.user_metadata?.is_super_admin;
-      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'http://localhost:3001';
+      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
       const redirectUrl = isSuperAdmin ? `${boUrl}/admin/dashboard` : '/catalog';
 
       setTimeout(() => {
@@ -313,7 +313,7 @@ function CompleteInvitationContent() {
             {(invitation?.is_super_admin || user?.user_metadata?.is_super_admin) && (
               <>
                 {' — Vous serez redirigé vers le back-office. '}
-                <a href={`${process.env.NEXT_PUBLIC_BO_URL || 'http://localhost:3001'}/admin/dashboard`} className="text-marlon-green underline font-medium">
+                <a href={`${process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr'}/admin/dashboard`} className="text-marlon-green underline font-medium">
                   Cliquez ici si la redirection ne fonctionne pas.
                 </a>
               </>

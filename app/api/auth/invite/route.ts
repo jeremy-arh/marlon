@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr';
 
     // Invite user via Supabase Auth - this sends the email automatically
     // The redirect URL will be appended to the confirmation URL by Supabase

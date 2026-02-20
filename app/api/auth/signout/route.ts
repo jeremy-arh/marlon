@@ -11,5 +11,5 @@ export async function POST() {
   cookieStore.delete('sb-access-token');
   cookieStore.delete('sb-refresh-token');
   
-  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr'));
 }
