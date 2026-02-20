@@ -103,8 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the site URL for redirect
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get('origin') || 'http://localhost:3000';
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
     // Invite user via Supabase Auth - this sends the email automatically
     // The redirect URL will be appended to the confirmation URL by Supabase

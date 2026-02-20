@@ -132,8 +132,14 @@ export async function POST(
       );
     }
 
-    // URL de l'app principale pour la redirection après acceptation (page complete-invitation)
-    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!siteUrl) {
+      console.error('NEXT_PUBLIC_APP_URL is not configured');
+      return NextResponse.json(
+        { error: 'Configuration serveur manquante. Contactez l\'administrateur.' },
+        { status: 500 }
+      );
+    }
 
     const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo: `${siteUrl}/complete-invitation?token=${token}`,
