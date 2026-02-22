@@ -17,8 +17,9 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr';
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${appUrl}/auth/callback?source=bo`,
       });
 
       if (error) {

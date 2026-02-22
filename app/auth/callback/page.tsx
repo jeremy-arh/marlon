@@ -58,8 +58,17 @@ function AuthCallbackContent() {
                 return;
               }
 
-              // Check if user needs to complete their profile
               if (type === 'recovery') {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('source') === 'bo' && data.session) {
+                  const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+                  const p = new URLSearchParams({
+                    access_token: data.session.access_token,
+                    refresh_token: data.session.refresh_token,
+                  });
+                  window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
+                  return;
+                }
                 router.push('/reset-password');
                 return;
               }
@@ -82,8 +91,19 @@ function AuthCallbackContent() {
             return;
           }
           
-          // Recovery = réinitialisation de mot de passe
           if (type === 'recovery') {
+            if (searchParams.get('source') === 'bo') {
+              const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                const p = new URLSearchParams({
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token,
+                });
+                window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
+                return;
+              }
+            }
             router.push('/reset-password');
             return;
           }
