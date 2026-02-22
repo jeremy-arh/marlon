@@ -22,26 +22,6 @@ function AuthCallbackContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isFromBO = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get('source') === 'bo';
-    };
-
-    const redirectToBO = async () => {
-      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const p = new URLSearchParams({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
-        return true;
-      }
-      window.location.replace(`${boUrl}/login`);
-      return true;
-    };
-
     const handleCallback = async () => {
       try {
         const hash = window.location.hash;
@@ -62,11 +42,6 @@ function AuthCallbackContent() {
               console.error('Session error:', sessionError);
               setError('Erreur lors de l\'authentification');
               setLoading(false);
-              return;
-            }
-
-            if (isFromBO()) {
-              await redirectToBO();
               return;
             }
 
@@ -97,11 +72,6 @@ function AuthCallbackContent() {
           if (exchangeError) {
             setError('Erreur lors de l\'authentification');
             setLoading(false);
-            return;
-          }
-
-          if (isFromBO()) {
-            await redirectToBO();
             return;
           }
           

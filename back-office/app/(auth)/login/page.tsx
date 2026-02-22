@@ -112,16 +112,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Mot de passe oublié */}
-            <div className="text-right">
-              <a
-                href="/forgot-password"
-                className="text-xs text-[#525C6B] hover:text-marlon-green transition-colors"
-              >
-                Mot de passe oublié ?
-              </a>
-            </div>
-
             {/* Sign In Button */}
             <button
               type="submit"
