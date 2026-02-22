@@ -22,20 +22,37 @@ function AuthCallbackContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const isFromBO = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('source') === 'bo';
+    };
+
+    const redirectToBO = async () => {
+      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const p = new URLSearchParams({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
+        return true;
+      }
+      window.location.replace(`${boUrl}/login`);
+      return true;
+    };
+
     const handleCallback = async () => {
       try {
-        // Get the hash from URL (Supabase sends tokens in hash)
         const hash = window.location.hash;
         
         if (hash) {
-          // Parse the hash to get access_token and other params
           const hashParams = new URLSearchParams(hash.substring(1));
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
           const type = hashParams.get('type');
 
           if (accessToken) {
-            // Set the session using the tokens
             const { data, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || '',
@@ -48,39 +65,31 @@ function AuthCallbackContent() {
               return;
             }
 
+            if (isFromBO()) {
+              await redirectToBO();
+              return;
+            }
+
             if (data.user) {
-              // Check if this is an invite (user has invitation_token in metadata)
               const invitationToken = data.user.user_metadata?.invitation_token;
               
               if (type === 'invite' || invitationToken) {
-                // Redirect to complete invitation page
                 router.push(`/complete-invitation?token=${invitationToken || ''}`);
                 return;
               }
 
               if (type === 'recovery') {
-                const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('source') === 'bo' && data.session) {
-                  const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
-                  const p = new URLSearchParams({
-                    access_token: data.session.access_token,
-                    refresh_token: data.session.refresh_token,
-                  });
-                  window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
-                  return;
-                }
                 router.push('/reset-password');
                 return;
               }
 
-              // Regular login - go to catalog
               router.push('/catalog');
               return;
             }
           }
         }
 
-        // Check for code in query params (PKCE flow)
+        // PKCE flow
         const code = searchParams.get('code');
         const type = searchParams.get('type');
         if (code) {
@@ -90,25 +99,17 @@ function AuthCallbackContent() {
             setLoading(false);
             return;
           }
+
+          if (isFromBO()) {
+            await redirectToBO();
+            return;
+          }
           
           if (type === 'recovery') {
-            if (searchParams.get('source') === 'bo') {
-              const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) {
-                const p = new URLSearchParams({
-                  access_token: session.access_token,
-                  refresh_token: session.refresh_token,
-                });
-                window.location.replace(`${boUrl}/reset-password?${p.toString()}`);
-                return;
-              }
-            }
             router.push('/reset-password');
             return;
           }
           
-          // Get the invitation token from query params
           const invitationToken = searchParams.get('invitation_token');
           if (invitationToken) {
             router.push(`/complete-invitation?token=${invitationToken}`);
