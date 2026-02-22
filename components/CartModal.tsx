@@ -73,7 +73,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<Record<string, { monthlyHT: number; monthlyTTC: number }>>({});
-  const [loadingPrices, setLoadingPrices] = useState<Record<string, boolean>>({});
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(36);
@@ -118,28 +118,41 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   // Load prices when items or duration changes
   useEffect(() => {
     if (cartItems.length === 0) return;
-    
-    // First, set immediate local prices for instant display
-    const immediateUpdate: Record<string, { monthlyHT: number; monthlyTTC: number }> = {};
-    cartItems.forEach((item) => {
-      if (item.products) {
-        const localPrice = calculateLocalPrice(item, selectedDuration);
-        if (localPrice) {
-          immediateUpdate[item.id] = localPrice;
-        }
-      }
-    });
-    
-    if (Object.keys(immediateUpdate).length > 0) {
-      setPrices(immediateUpdate);
-    }
-    
-    // Then try to get more accurate prices from API
-    cartItems.forEach((item) => {
-      if (item.products) {
-        loadPrice(item.id, item.products.id, selectedDuration);
-      }
-    });
+
+    setPricesLoading(true);
+
+    const loadAllPrices = async () => {
+      const results = await Promise.all(
+        cartItems.map(async (item) => {
+          if (!item.products) return { itemId: item.id, price: null };
+          try {
+            const response = await fetch(
+              `/api/products/${item.products.id}/price?duration=${selectedDuration}`
+            );
+            const data = await response.json();
+            if (data.success && data.price) {
+              const qty = item.quantity || 1;
+              const monthlyHT = data.price.monthlyPrice * qty;
+              const monthlyTTC = monthlyHT * 1.2;
+              return { itemId: item.id, price: { monthlyHT, monthlyTTC } };
+            }
+          } catch {
+            // fallback to local calculation on error
+          }
+          const localPrice = calculateLocalPrice(item, selectedDuration);
+          return { itemId: item.id, price: localPrice };
+        })
+      );
+
+      const newPrices: Record<string, { monthlyHT: number; monthlyTTC: number }> = {};
+      results.forEach(({ itemId, price }) => {
+        if (price) newPrices[itemId] = price;
+      });
+      setPrices(newPrices);
+      setPricesLoading(false);
+    };
+
+    loadAllPrices();
   }, [cartItems, selectedDuration]);
 
   const fetchCart = async () => {
@@ -179,55 +192,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     };
     persistDuration();
   }, [selectedDuration, cartItems]);
-
-  const loadPrice = async (itemId: string, productId: string, durationMonths: number) => {
-    const item = cartItems.find((i) => i.id === itemId);
-    if (!item) return;
-
-    setLoadingPrices((prev) => ({ ...prev, [itemId]: true }));
-    
-    try {
-      const response = await fetch(
-        `/api/products/${productId}/price?duration=${durationMonths}`
-      );
-      const data = await response.json();
-      
-      if (data.success && data.price) {
-        const qty = item.quantity || 1;
-        // API returns monthlyPrice as HT
-        const monthlyHT = data.price.monthlyPrice * qty;
-        const monthlyTTC = monthlyHT * 1.2; // Add 20% TVA
-        setPrices((prev) => ({
-          ...prev,
-          [itemId]: {
-            monthlyHT,
-            monthlyTTC,
-          },
-        }));
-      } else {
-        // Fallback to local calculation
-        const localPrice = calculateLocalPrice(item, durationMonths);
-        if (localPrice) {
-          setPrices((prev) => ({
-            ...prev,
-            [itemId]: localPrice,
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error loading price:', error);
-      // Fallback to local calculation on error
-      const localPrice = calculateLocalPrice(item, durationMonths);
-      if (localPrice) {
-        setPrices((prev) => ({
-          ...prev,
-          [itemId]: localPrice,
-        }));
-      }
-    } finally {
-      setLoadingPrices((prev) => ({ ...prev, [itemId]: false }));
-    }
-  };
 
   const removeItem = async (itemId: string) => {
     try {
@@ -363,7 +327,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                   const images = product?.product_images?.sort((a, b) => a.order_index - b.order_index) || [];
                   const mainImage = images[0]?.image_url;
                   const price = prices[item.id];
-                  const isLoadingPrice = loadingPrices[item.id];
                   const isExpanded = expandedItems.has(item.id);
 
                   return (
@@ -392,8 +355,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                         
                         {/* Price */}
                         <div className="mt-1">
-                          {isLoadingPrice ? (
-                            <Icon icon="mdi:loading" className="h-4 w-4 animate-spin text-gray-400" />
+                          {pricesLoading ? (
+                            <span className="inline-block h-4 w-20 bg-gray-200 rounded animate-pulse" />
                           ) : price ? (
                             <span className="text-sm font-bold text-marlon-green">
                               {price.monthlyTTC.toFixed(2)} € TTC
@@ -514,7 +477,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="font-medium text-[#1a365d]">Loyer HT :</span>
-                      <span className="text-gray-700">{totalMonthlyHT.toFixed(2)} € / mois</span>
+                      <span className="text-gray-700">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totalMonthlyHT.toFixed(2)} € / mois`}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-[#1a365d]">Durée du contrat :</span>
@@ -531,7 +494,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               {/* Always visible: Total TTC + Buttons */}
               <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                 <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
-                <span className="font-bold text-[#1a365d]">{totalMonthlyTTC.toFixed(2)} € / mois</span>
+                <span className="font-bold text-[#1a365d]">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totalMonthlyTTC.toFixed(2)} € / mois`}</span>
               </div>
 
               {/* Action Buttons */}

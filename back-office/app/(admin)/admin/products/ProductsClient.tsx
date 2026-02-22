@@ -901,10 +901,10 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
                                           {price ? (
                                             <div className="space-y-1">
                                               <div className="text-sm font-semibold text-black">
-                                                {price.monthly.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT/mois
+                                                {(price.monthly * 1.2).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC/mois
                                               </div>
                                               <div className="text-xs text-gray-600">
-                                                Total: {price.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT
+                                                Total: {(price.total * 1.2).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC
                                               </div>
                                             </div>
                                           ) : (

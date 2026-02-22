@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import ViewOrdersButton from './ViewOrdersButton';
 
 export default async function OrderConfirmationPage({
   params,
@@ -74,12 +75,7 @@ export default async function OrderConfirmationPage({
         </div>
 
         <div className="space-y-3">
-          <Link
-            href="/orders"
-            className="block w-full py-3 bg-marlon-green text-white font-semibold rounded-lg hover:bg-marlon-green/90 transition-colors"
-          >
-            Voir mes commandes
-          </Link>
+          <ViewOrdersButton />
           <Link
             href="/catalog"
             className="block w-full py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"

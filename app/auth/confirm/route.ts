@@ -26,6 +26,18 @@ export async function GET(request: NextRequest) {
 
   if (type === 'invite') {
     const token = data.user?.user_metadata?.invitation_token || '';
+    const isSuperAdmin = data.user?.user_metadata?.is_super_admin === true;
+
+    if (isSuperAdmin && data.session) {
+      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+      const params = new URLSearchParams({
+        token,
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      return NextResponse.redirect(`${boUrl}/complete-invitation?${params.toString()}`);
+    }
+
     return NextResponse.redirect(new URL(`/complete-invitation?token=${token}`, request.url));
   }
 

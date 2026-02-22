@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { recalculateOrderPrices } from '@/lib/utils/pricing';
 
@@ -274,6 +275,8 @@ export async function POST(request: NextRequest) {
       .from('cart_items')
       .delete()
       .eq('cart_id', cartId);
+
+    revalidatePath('/orders');
 
     return NextResponse.json({ order });
   } catch (error: any) {

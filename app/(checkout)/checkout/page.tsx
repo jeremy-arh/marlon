@@ -79,6 +79,7 @@ export default function CheckoutPage() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [prices, setPrices] = useState<Record<string, { monthlyHT: number; monthlyTTC: number }>>({});
+  const [pricesLoading, setPricesLoading] = useState(false);
 
   // Step 1: Company data
   const [companyData, setCompanyData] = useState({
@@ -130,17 +131,11 @@ export default function CheckoutPage() {
   });
 
   const loadPricesFromApi = useCallback(async (items: CartItem[], duration: number) => {
-    const localPrices: Record<string, { monthlyHT: number; monthlyTTC: number }> = {};
-    items.forEach((item) => {
-      if (item.products) {
-        localPrices[item.id] = calculateLocalPrice(item, duration);
-      }
-    });
-    setPrices(localPrices);
+    setPricesLoading(true);
 
-    await Promise.all(
+    const results = await Promise.all(
       items.map(async (item) => {
-        if (!item.products) return;
+        if (!item.products) return { itemId: item.id, price: null };
         try {
           const res = await fetch(`/api/products/${item.products.id}/price?duration=${duration}`);
           const data = await res.json();
@@ -148,13 +143,21 @@ export default function CheckoutPage() {
             const qty = item.quantity || 1;
             const monthlyHT = data.price.monthlyPrice * qty;
             const monthlyTTC = monthlyHT * 1.2;
-            setPrices((prev) => ({ ...prev, [item.id]: { monthlyHT, monthlyTTC } }));
+            return { itemId: item.id, price: { monthlyHT, monthlyTTC } };
           }
         } catch {
-          // local fallback already set
+          // fallback to local calculation on error
         }
+        return { itemId: item.id, price: calculateLocalPrice(item, duration) };
       })
     );
+
+    const newPrices: Record<string, { monthlyHT: number; monthlyTTC: number }> = {};
+    results.forEach(({ itemId, price }) => {
+      if (price) newPrices[itemId] = price;
+    });
+    setPrices(newPrices);
+    setPricesLoading(false);
   }, []);
 
   useEffect(() => {
@@ -1262,7 +1265,7 @@ export default function CheckoutPage() {
                     <div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
                         <Icon icon="mdi:file-document" className="h-5 w-5 text-blue-500" />
-                        Liasse fiscale 2035 ou dernier bilan comptable <span className="text-gray-400">(optionnel)</span>
+                        Liasse fiscale 2035 ou dernier bilan comptable <span className="text-gray-400">(recommandé)</span>
                       </label>
                       <input
                         type="file"
@@ -1286,7 +1289,7 @@ export default function CheckoutPage() {
                             Document existant ✓ (cliquez pour remplacer)
                           </span>
                         ) : (
-                          'Cliquez pour téléverser (optionnel)'
+                          'Cliquez pour téléverser (recommandé)'
                         )}
                       </label>
                     </div>
@@ -1294,7 +1297,7 @@ export default function CheckoutPage() {
                     <div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
                         <Icon icon="mdi:file-chart" className="h-5 w-5 text-blue-500" />
-                        Business plan <span className="text-gray-400">(optionnel)</span>
+                        Business plan <span className="text-gray-400">(recommandé)</span>
                       </label>
                       <input
                         type="file"
@@ -1318,7 +1321,7 @@ export default function CheckoutPage() {
                             Document existant ✓ (cliquez pour remplacer)
                           </span>
                         ) : (
-                          'Cliquez pour téléverser (optionnel)'
+                          'Cliquez pour téléverser (recommandé)'
                         )}
                       </label>
                     </div>
@@ -1360,7 +1363,11 @@ export default function CheckoutPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-900 line-clamp-2">{product?.name}</p>
                           <p className="text-sm font-semibold text-marlon-green mt-1">
-                            {price.monthlyTTC.toFixed(2)} € TTC<span className="font-normal text-gray-500">/mois</span>
+                            {pricesLoading ? (
+                              <span className="inline-block h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                            ) : (
+                              <>{price.monthlyTTC.toFixed(2)} € TTC<span className="font-normal text-gray-500">/mois</span></>
+                            )}
                           </p>
                         </div>
                         <span className="text-sm text-gray-500">x{item.quantity}</span>
@@ -1391,7 +1398,7 @@ export default function CheckoutPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="font-medium text-[#1a365d]">Loyer HT :</span>
-                      <span className="text-gray-700">{totals.monthlyHT.toFixed(2)} € / mois</span>
+                      <span className="text-gray-700">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totals.monthlyHT.toFixed(2)} € / mois`}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-[#1a365d]">Durée du contrat :</span>
@@ -1403,7 +1410,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex justify-between pt-2 border-t border-gray-200">
                       <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
-                      <span className="font-bold text-[#1a365d]">{totals.monthlyTTC.toFixed(2)} € / mois</span>
+                      <span className="font-bold text-[#1a365d]">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totals.monthlyTTC.toFixed(2)} € / mois`}</span>
                     </div>
                   </div>
                 </div>
@@ -1481,7 +1488,11 @@ export default function CheckoutPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 line-clamp-1">{product?.name}</p>
                       <p className="text-sm font-semibold text-marlon-green">
-                        {price.monthlyTTC.toFixed(2)} € TTC<span className="font-normal text-gray-500">/mois</span>
+                        {pricesLoading ? (
+                          <span className="inline-block h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                        ) : (
+                          <>{price.monthlyTTC.toFixed(2)} € TTC<span className="font-normal text-gray-500">/mois</span></>
+                        )}
                       </p>
                     </div>
                     <span className="text-sm text-gray-500">x{item.quantity}</span>
@@ -1514,7 +1525,7 @@ export default function CheckoutPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Loyer HT</span>
-                <span className="text-gray-700">{totals.monthlyHT.toFixed(2)} € / mois</span>
+                <span className="text-gray-700">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totals.monthlyHT.toFixed(2)} € / mois`}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Livraison</span>
@@ -1528,7 +1539,7 @@ export default function CheckoutPage() {
         <div className="px-4 pb-4 pt-2">
           <div className="flex justify-between items-center mb-3">
             <span className="font-bold text-[#1a365d]">Loyer TTC :</span>
-            <span className="font-bold text-[#1a365d]">{totals.monthlyTTC.toFixed(2)} € / mois</span>
+            <span className="font-bold text-[#1a365d]">{pricesLoading ? <span className="inline-block h-4 w-24 bg-gray-200 rounded animate-pulse align-middle" /> : `${totals.monthlyTTC.toFixed(2)} € / mois`}</span>
           </div>
           <button
             onClick={currentStep === 3 ? handleSubmitOrder : handleNextStep}
