@@ -112,6 +112,16 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Mot de passe oublié */}
+            <div className="text-right">
+              <a
+                href="/forgot-password"
+                className="text-xs text-[#525C6B] hover:text-marlon-green transition-colors"
+              >
+                Mot de passe oublié ?
+              </a>
+            </div>
+
             {/* Sign In Button */}
             <button
               type="submit"
@@ -119,7 +129,7 @@ export default function LoginPage() {
               className="flex w-full items-center justify-center gap-2 rounded-md bg-marlon-green px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#00A870] focus:outline-none focus:ring-2 focus:ring-marlon-green focus:ring-offset-2 disabled:opacity-50"
             >
               <Icon icon="mdi:lock" className="h-4 w-4" />
-              {loading ? 'Connexion...' : 'Sign In'}
+              {loading ? 'Connexion...' : 'Se connecter'}
             </button>
 
             {/* Back Link */}

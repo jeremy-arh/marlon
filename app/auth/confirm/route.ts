@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
@@ -42,6 +43,26 @@ export async function GET(request: NextRequest) {
   }
 
   if (type === 'recovery') {
+    const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+
+    if (data.user && data.session) {
+      const serviceClient = createServiceClient();
+      const { data: roleData } = await serviceClient
+        .from('user_roles')
+        .select('is_super_admin')
+        .eq('user_id', data.user.id)
+        .eq('is_super_admin', true)
+        .maybeSingle();
+
+      if (roleData) {
+        const params = new URLSearchParams({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        return NextResponse.redirect(`${boUrl}/reset-password?${params.toString()}`);
+      }
+    }
+
     return NextResponse.redirect(new URL('/reset-password', request.url));
   }
 
