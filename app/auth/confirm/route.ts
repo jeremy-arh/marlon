@@ -42,6 +42,18 @@ export async function GET(request: NextRequest) {
   }
 
   if (type === 'recovery') {
+    const isFromBO = redirectTo && redirectTo.includes('source=bo');
+    const isSuperAdmin = data.user?.user_metadata?.is_super_admin === true;
+
+    if ((isFromBO || isSuperAdmin) && data.session) {
+      const boUrl = process.env.NEXT_PUBLIC_BO_URL || 'https://bo.marlon.fr';
+      const params = new URLSearchParams({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      return NextResponse.redirect(`${boUrl}/reset-password?${params.toString()}`);
+    }
+
     return NextResponse.redirect(new URL('/reset-password', request.url));
   }
 
