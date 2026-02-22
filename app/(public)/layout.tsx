@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import ClientSidebar from '@/components/ClientSidebar';
 import RoutePrefetcher from '@/components/RoutePrefetcher';
+import AuthHashHandler from '@/components/AuthHashHandler';
 
 export default function PublicLayout({
   children,
@@ -44,6 +45,8 @@ export default function PublicLayout({
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
+      {/* Traite le hash auth quand Supabase redirige vers /catalog au lieu de /auth/callback */}
+      <AuthHashHandler />
       {/* Sidebar */}
       <ClientSidebar />
       

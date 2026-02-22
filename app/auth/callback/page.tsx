@@ -73,11 +73,18 @@ function AuthCallbackContent() {
 
         // Check for code in query params (PKCE flow)
         const code = searchParams.get('code');
+        const type = searchParams.get('type');
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             setError('Erreur lors de l\'authentification');
             setLoading(false);
+            return;
+          }
+          
+          // Recovery = réinitialisation de mot de passe
+          if (type === 'recovery') {
+            router.push('/reset-password');
             return;
           }
           

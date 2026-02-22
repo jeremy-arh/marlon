@@ -47,7 +47,7 @@ export async function signOut() {
 export async function resetPassword(email: string) {
   const appUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL;
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${appUrl}/reset-password`,
+    redirectTo: `${appUrl}/auth/callback`,
   });
   return { data, error };
 }

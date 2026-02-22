@@ -8,6 +8,20 @@ import PageHeader from '@/components/PageHeader';
 import Icon from '@/components/Icon';
 import { matchesSearch } from '@/lib/utils/search';
 
+/** Redirige immédiatement si hash auth (invite/recovery) - Supabase envoie parfois vers /catalog */
+function useAuthHashRedirect() {
+  useEffect(() => {
+    const h = typeof window !== 'undefined' ? window.location.hash : '';
+    if (!h) return;
+    const p = new URLSearchParams(h.substring(1));
+    const token = p.get('access_token');
+    const type = p.get('type');
+    if (token && ['invite', 'recovery', 'magiclink'].includes(type || '')) {
+      window.location.replace('/auth/callback' + (window.location.search || '') + h);
+    }
+  }, []);
+}
+
 interface Category {
   id: string;
   name: string;
@@ -76,6 +90,7 @@ export default function CatalogClient({
   productCheapestId,
   productCheapestSlug
 }: CatalogClientProps) {
+  useAuthHashRedirect();
   const searchParams = useSearchParams();
   const urlType = searchParams.get('type');
   const urlSpecialty = searchParams.get('specialty');
@@ -91,6 +106,7 @@ export default function CatalogClient({
   const specialtyDropdownRef = useRef<HTMLDivElement>(null);
   const itTypeDropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Initialize from URL params
   useEffect(() => {
@@ -107,9 +123,11 @@ export default function CatalogClient({
     }
   }, [urlType, urlSpecialty, urlItCategory]);
 
-  // Close dropdowns when clicking outside
+  // Close dropdowns when clicking outside (desktop only)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (isFilterSheetOpen) return;
+
       if (specialtyDropdownRef.current && !specialtyDropdownRef.current.contains(event.target as Node)) {
         setIsSpecialtyDropdownOpen(false);
       }
@@ -119,7 +137,7 @@ export default function CatalogClient({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isFilterSheetOpen]);
 
   // Filter specialties based on search (accent-insensitive)
   const filteredSpecialties = specialties.filter(s => 
@@ -221,8 +239,6 @@ export default function CatalogClient({
     );
   }
 
-  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
-
   // Count active filters for badge
   const activeFilterCount = [activeProductType, selectedSpecialty, selectedItCategory].filter(Boolean).length;
 
@@ -301,6 +317,8 @@ export default function CatalogClient({
           setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
           setSelectedSpecialty(null);
           setSelectedItCategory(null);
+          setIsSpecialtyDropdownOpen(false);
+          setIsItTypeDropdownOpen(false);
           if (isMobile) setIsFilterSheetOpen(false);
         }}
         className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full text-center' : ''} ${
@@ -382,7 +400,15 @@ export default function CatalogClient({
             type="text"
             placeholder="Rechercher un produit..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setActiveProductType(null);
+              setSelectedSpecialty(null);
+              setSelectedItCategory(null);
+              setIsSpecialtyDropdownOpen(false);
+              setIsItTypeDropdownOpen(false);
+              setIsFilterSheetOpen(false);
+            }}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-marlon-green focus:border-transparent"
           />
           {searchQuery && (

@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.marlon.fr';
 
     // Invite user via Supabase Auth - this sends the email automatically
-    // The redirect URL will be appended to the confirmation URL by Supabase
+    // redirectTo doit être dans la liste "Redirect URLs" du dashboard Supabase (Auth > URL Configuration)
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo: `${siteUrl}/complete-invitation?token=${token}`,
       data: {

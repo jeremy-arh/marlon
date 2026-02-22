@@ -1,16 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { updatePassword } from '@/lib/utils/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import { supabase } from '@/lib/supabase/client';
 
 const ILLUSTRATION_URL = 'https://qdnwppnrqpiquxboskos.supabase.co/storage/v1/object/public/static-assets/connection%201.svg';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
+  const [sessionReady, setSessionReady] = useState(false);
+
+  // Fallback: si l'utilisateur arrive avec un hash (ancien lien email), traiter les tokens ici
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      if (accessToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' }).then(() => {
+          window.history.replaceState(null, '', window.location.pathname);
+          setSessionReady(true);
+        });
+        return;
+      }
+    }
+    setSessionReady(true);
+  }, []);
+
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +63,14 @@ export default function ResetPasswordPage() {
       router.refresh();
     }
   };
+
+  if (!sessionReady) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center h-full">

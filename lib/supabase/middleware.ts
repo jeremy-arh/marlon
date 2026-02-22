@@ -64,6 +64,20 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Si Supabase redirige vers /catalog avec un code (recovery, magic link, etc.),
+  // rediriger vers /auth/callback pour traiter correctement le flux
+  const code = request.nextUrl.searchParams.get('code');
+  if (pathname.startsWith('/catalog') && code) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/auth/callback';
+    return NextResponse.redirect(url);
+  }
+
+  // La racine "/" doit être accessible pour que le hash Supabase soit traité côté client
+  if (pathname === '/') {
+    return supabaseResponse;
+  }
+
   // Routes publiques autorisées pour les utilisateurs non connectés
   const publicPaths = [
     '/catalog',
@@ -74,6 +88,7 @@ export async function updateSession(request: NextRequest) {
     '/accept-invitation',
     '/complete-invitation',
     '/auth/callback',
+    '/auth/confirm',
   ];
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 

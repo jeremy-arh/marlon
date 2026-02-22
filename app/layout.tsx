@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+import AuthHashRedirect from "@/components/AuthHashRedirect";
 
 export const metadata: Metadata = {
   title: {
@@ -9,6 +11,26 @@ export const metadata: Metadata = {
   description: "Plateforme de leasing de matériel médical",
 };
 
+const AUTH_HASH_SCRIPT = `
+(function(){
+  var h=window.location.hash;
+  if(!h)return;
+  var p=new URLSearchParams(h.substring(1));
+  var t=p.get('access_token');
+  var type=p.get('type');
+  if(!t)return;
+  var path=window.location.pathname;
+  if(path==='/complete-invitation'||path==='/reset-password'||path==='/auth/callback')return;
+  if(type==='invite'){
+    window.location.replace('/complete-invitation'+(window.location.search||'')+h);
+  }else if(type==='recovery'){
+    window.location.replace('/reset-password'+h);
+  }else if(type==='magiclink'){
+    window.location.replace('/auth/callback'+h);
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,7 +38,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <head>
+        <Script id="auth-hash-redirect" strategy="beforeInteractive">
+          {AUTH_HASH_SCRIPT}
+        </Script>
+      </head>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: AUTH_HASH_SCRIPT }} />
+        <AuthHashRedirect />
+        {children}
+      </body>
     </html>
   );
 }
