@@ -234,22 +234,16 @@ export default function CatalogClient({
 
   const handleSpecialtySelect = (specialtyId: string | null) => {
     const path = getCatalogPath(specialtyId ? 'medical_equipment' : null, specialtyId, null);
-    router.push(path);
-    setSelectedSpecialty(specialtyId);
-    setSelectedItCategory(null);
-    setActiveProductType(specialtyId ? 'medical_equipment' : null);
     setIsSpecialtyDropdownOpen(false);
     setSpecialtySearch('');
+    router.push(path);
   };
 
   const handleItCategorySelect = (categoryId: string | null) => {
     const path = getCatalogPath('it_equipment', null, categoryId);
-    router.push(path);
-    setSelectedItCategory(categoryId);
-    setSelectedSpecialty(null);
-    setActiveProductType('it_equipment');
     setIsItTypeDropdownOpen(false);
     setItCategorySearch('');
+    router.push(path);
   };
 
   const getSpecialtyLabel = () => {
@@ -379,13 +373,10 @@ export default function CatalogClient({
       <button
         onClick={() => {
           const path = activeProductType === 'furniture' ? '/catalog' : '/catalog/mobilier';
-          router.push(path);
-          setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
-          setSelectedSpecialty(null);
-          setSelectedItCategory(null);
           setIsSpecialtyDropdownOpen(false);
           setIsItTypeDropdownOpen(false);
           if (isMobile) setIsFilterSheetOpen(false);
+          router.push(path);
         }}
         className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isMobile ? 'w-full text-center' : ''} ${
           activeProductType === 'furniture'

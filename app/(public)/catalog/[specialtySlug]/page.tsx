@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import CatalogPageContent from '../CatalogPageContent';
+import CatalogSkeleton from '../CatalogSkeleton';
 import { slugify } from '@/lib/utils/slug';
 
 export async function generateMetadata({ params }: { params: { specialtySlug: string } }) {
@@ -29,7 +30,7 @@ export default async function CatalogSpecialtyPage({
   }
 
   return (
-    <Suspense fallback={<div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" /></div>}>
+    <Suspense fallback={<CatalogSkeleton />}>
       <CatalogPageContent initialFilter={{ type: 'medical_equipment', specialtyId: specialty.id }} />
     </Suspense>
   );
