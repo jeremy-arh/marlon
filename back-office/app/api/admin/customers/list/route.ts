@@ -14,7 +14,10 @@ export async function GET() {
     const serviceClient = createServiceClient();
     const { data, error } = await serviceClient
       .from('organizations')
-      .select('*')
+      .select(`
+        *,
+        contact_specialty:specialties(name)
+      `)
       .order('created_at', { ascending: false });
 
     if (error) {

@@ -1,41 +1,57 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import CategoryProductsClient from './CategoryProductsClient';
+import { slugify } from '@/lib/utils/slug';
+import CategoryProductsClient from '../../category/[slug]/CategoryProductsClient';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const supabase = await createClient();
-  const { data: category } = await supabase.from('categories').select('name').eq('slug', params.slug).single();
-  return { title: category?.name || 'Catégorie' };
-}
-
-export default async function CategoryPage({
+export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: { specialtySlug: string; categorySlug: string };
+}) {
+  const supabase = await createClient();
+  const { data: category } = await supabase
+    .from('categories')
+    .select('name')
+    .eq('slug', params.categorySlug)
+    .single();
+  return { title: category?.name ? `Catalogue - ${category.name}` : 'Catalogue' };
+}
+
+export default async function CatalogSpecialtyCategoryPage({
+  params,
+}: {
+  params: { specialtySlug: string; categorySlug: string };
 }) {
   const supabase = await createClient();
 
-  // Fetch category (product_type is used for breadcrumb - e.g. Armoire belongs to Mobilier)
+  const { data: specialties } = await supabase.from('specialties').select('id, name');
+  const specialty = (specialties || []).find(
+    (s: { name?: string }) => slugify(s.name) === params.specialtySlug
+  );
+  if (!specialty) notFound();
+
   const { data: category } = await supabase
     .from('categories')
     .select('id, name, slug, description, image_url, product_type')
-    .eq('slug', params.slug)
+    .eq('slug', params.categorySlug)
+    .eq('product_type', 'medical_equipment')
     .single();
+  if (!category) notFound();
 
-  if (!category) {
-    notFound();
-  }
+  const { data: categorySpecialty } = await supabase
+    .from('category_specialties')
+    .select('specialty_id')
+    .eq('category_id', category.id)
+    .eq('specialty_id', specialty.id)
+    .single();
+  if (!categorySpecialty) notFound();
 
-  // Fetch products in this category
   const { data: productCategories } = await supabase
     .from('product_categories')
     .select('product_id')
     .eq('category_id', category.id);
-
   const productIds = productCategories?.map((pc) => pc.product_id) || [];
 
-  // Only show parent products (not variants) in category listing
   const { data: products } = await supabase
     .from('products')
     .select(`
@@ -56,26 +72,19 @@ export default async function CategoryPage({
     .is('parent_product_id', null)
     .order('name');
 
-  // Get all brands for filter
-  const { data: brands } = await supabase
-    .from('brands')
-    .select('id, name')
-    .order('name');
+  const { data: brands } = await supabase.from('brands').select('id, name').order('name');
 
-  // Load ALL leaser coefficients for price calculations
   const { data: allCoefficients } = await supabase
     .from('leaser_coefficients')
     .select('leaser_id, coefficient, min_amount, max_amount')
     .order('coefficient', { ascending: true });
 
-  // Helper: find the best (cheapest) coefficient for a given price HT and leaser
   const findCoefficient = (priceHT: number, leaserId?: string | null): number => {
     if (allCoefficients && allCoefficients.length > 0) {
       const pool = leaserId
         ? allCoefficients.filter((c: any) => c.leaser_id === leaserId)
         : allCoefficients;
       const source = pool.length > 0 ? pool : allCoefficients;
-
       const matching = source.filter(
         (c: any) => Number(c.min_amount) <= priceHT && Number(c.max_amount) >= priceHT
       );
@@ -90,45 +99,25 @@ export default async function CategoryPage({
     return 0.035;
   };
 
-  // Pre-calculate monthly prices for each product (using correct coefficient per leaser + price range)
+  const coefficient = allCoefficients?.length ? Number(allCoefficients[0].coefficient) / 100 : 0.035;
   const productMonthlyPrices: Record<string, number> = {};
-  for (const product of (products || [])) {
+  for (const product of products || []) {
     const priceHT = Number(product.purchase_price_ht) * (1 + Number(product.marlon_margin_percent) / 100);
-    const coef = findCoefficient(priceHT, product.default_leaser_id);
-    productMonthlyPrices[product.id] = priceHT * coef;
+    productMonthlyPrices[product.id] = priceHT * findCoefficient(priceHT, product.default_leaser_id);
   }
-
-  // Default coefficient for backward compat (e.g. price filtering)
-  const coefficient = allCoefficients && allCoefficients.length > 0
-    ? Number(allCoefficients[0].coefficient) / 100
-    : 0.035;
-
-  // Use category's product_type for breadcrumb (source of truth). Fallback to most common from products.
-  const productTypes = (products || []).map((p: any) => p.product_type).filter(Boolean);
-  const typeCounts: Record<string, number> = {};
-  productTypes.forEach((type: string) => {
-    typeCounts[type] = (typeCounts[type] || 0) + 1;
-  });
-  const mostCommonTypeFromProducts = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-  const productType = (category as any).product_type || mostCommonTypeFromProducts;
-
-  // Page catégorie sans filtre (ex: /catalog/category/autoclaves)
-  const hasUrlFilters = false;
-  const itCategoryId = productType === 'it_equipment' ? category.id : null;
 
   return (
     <CategoryProductsClient
       category={category}
       products={products || []}
       brands={brands || []}
-      coefficient={Number(coefficient)}
+      coefficient={coefficient}
       productMonthlyPrices={productMonthlyPrices}
-      productType={productType}
-      specialtyId={null}
-      specialtyName={null}
-      itCategoryId={itCategoryId}
-      hasUrlFilters={hasUrlFilters}
-      catalogPath="/catalog"
+      productType="medical_equipment"
+      specialtyId={specialty.id}
+      specialtyName={specialty.name}
+      hasUrlFilters={true}
+      catalogPath={`/catalog/${params.specialtySlug}`}
     />
   );
 }

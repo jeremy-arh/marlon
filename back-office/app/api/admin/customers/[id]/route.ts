@@ -28,18 +28,31 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const { data, error } = await serviceClient
+    const { data: orgData, error } = await serviceClient
       .from('organizations')
       .select('*')
       .eq('id', params.id)
       .single();
 
-    if (error || !data) {
+    if (error || !orgData) {
       return NextResponse.json(
         { error: 'Organisation non trouvée' },
         { status: 404 }
       );
     }
+
+    // Fetch specialty name if contact_specialty_id is set
+    let contact_specialty_name: string | null = null;
+    if (orgData.contact_specialty_id) {
+      const { data: specialty } = await serviceClient
+        .from('specialties')
+        .select('name')
+        .eq('id', orgData.contact_specialty_id)
+        .single();
+      contact_specialty_name = specialty?.name || null;
+    }
+
+    const data = { ...orgData, contact_specialty_name };
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
@@ -90,7 +103,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, siret, email, phone, address, city, postal_code, country } = body;
+    const { name, siret, email, phone, address, city, postal_code, country, contact_first_name, contact_last_name, contact_specialty_id } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Le nom est requis' }, { status: 400 });
@@ -107,6 +120,9 @@ export async function PUT(
         city: city || null,
         postal_code: postal_code || null,
         country: country || 'FR',
+        contact_first_name: contact_first_name !== undefined ? (contact_first_name || null) : currentOrg.contact_first_name,
+        contact_last_name: contact_last_name !== undefined ? (contact_last_name || null) : currentOrg.contact_last_name,
+        contact_specialty_id: contact_specialty_id !== undefined ? (contact_specialty_id || null) : currentOrg.contact_specialty_id,
       })
       .eq('id', params.id)
       .select()
@@ -154,6 +170,18 @@ export async function PUT(
     if (country !== currentOrg.country) {
       changes.push('Pays modifié');
       metadata.country_change = { from: currentOrg.country, to: country };
+    }
+    const newContactFirstName = contact_first_name !== undefined ? (contact_first_name || null) : currentOrg.contact_first_name;
+    const newContactLastName = contact_last_name !== undefined ? (contact_last_name || null) : currentOrg.contact_last_name;
+    const newContactSpecialtyId = contact_specialty_id !== undefined ? (contact_specialty_id || null) : currentOrg.contact_specialty_id;
+    if (newContactFirstName !== currentOrg.contact_first_name) {
+      changes.push('Prénom du contact modifié');
+    }
+    if (newContactLastName !== currentOrg.contact_last_name) {
+      changes.push('Nom du contact modifié');
+    }
+    if (newContactSpecialtyId !== currentOrg.contact_specialty_id) {
+      changes.push('Spécialité du contact modifiée');
     }
 
     // Create log

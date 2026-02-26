@@ -541,15 +541,10 @@ export default function ProductsClient({ initialProducts, durations, leasers, ca
   // Filtre de recherche + filtres dropdown
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      // Recherche texte
+      // Recherche texte - uniquement dans le nom du produit
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesSearch =
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.reference || '').toLowerCase().includes(q) ||
-          (p.brand?.name || '').toLowerCase().includes(q) ||
-          (p.serial_number || '').toLowerCase().includes(q);
-        if (!matchesSearch) return false;
+        if (!(p.name || '').toLowerCase().includes(q)) return false;
       }
 
       // Filtre type

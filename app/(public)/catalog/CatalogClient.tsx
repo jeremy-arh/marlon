@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { slugify } from '@/lib/utils/slug';
 import Image from 'next/image';
 import PageHeader from '@/components/PageHeader';
 import Icon from '@/components/Icon';
@@ -55,6 +56,12 @@ interface ItProduct {
   product_images?: { image_url: string; order_index: number }[];
 }
 
+type InitialFilter =
+  | { type: 'furniture' }
+  | { type: 'it_equipment'; itCategoryId?: string }
+  | { type: 'medical_equipment'; specialtyId?: string }
+  | null;
+
 interface CatalogClientProps {
   initialCategories: Category[];
   categoryProductTypes: Record<string, string[]>;
@@ -71,6 +78,7 @@ interface CatalogClientProps {
   productCheapestImages: Record<string, string | null>;
   productCheapestId: Record<string, string>;
   productCheapestSlug: Record<string, string>;
+  initialFilter?: InitialFilter;
 }
 
 export default function CatalogClient({ 
@@ -88,17 +96,32 @@ export default function CatalogClient({
   productCheapestPrices,
   productCheapestImages,
   productCheapestId,
-  productCheapestSlug
+  productCheapestSlug,
+  initialFilter = null,
 }: CatalogClientProps) {
   useAuthHashRedirect();
-  const searchParams = useSearchParams();
-  const urlType = searchParams.get('type');
-  const urlSpecialty = searchParams.get('specialty');
-  const urlItCategory = searchParams.get('itCategory');
-  
-  const [activeProductType, setActiveProductType] = useState<string | null>(urlType);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(urlSpecialty);
-  const [selectedItCategory, setSelectedItCategory] = useState<string | null>(urlItCategory);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const getInitialState = () => {
+    if (initialFilter) {
+      if (initialFilter.type === 'furniture') {
+        return { type: 'furniture' as const, specialty: null, itCategory: null };
+      }
+      if (initialFilter.type === 'it_equipment') {
+        return { type: 'it_equipment' as const, specialty: null, itCategory: initialFilter.itCategoryId || null };
+      }
+      if (initialFilter.type === 'medical_equipment') {
+        return { type: 'medical_equipment' as const, specialty: initialFilter.specialtyId || null, itCategory: null };
+      }
+    }
+    return { type: null as string | null, specialty: null, itCategory: null };
+  };
+
+  const initialState = getInitialState();
+  const [activeProductType, setActiveProductType] = useState<string | null>(initialState.type);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(initialState.specialty);
+  const [selectedItCategory, setSelectedItCategory] = useState<string | null>(initialState.itCategory);
   const [specialtySearch, setSpecialtySearch] = useState('');
   const [itCategorySearch, setItCategorySearch] = useState('');
   const [isSpecialtyDropdownOpen, setIsSpecialtyDropdownOpen] = useState(false);
@@ -108,20 +131,57 @@ export default function CatalogClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  // Initialize from URL params
+  // Synchroniser l'état avec le pathname (navigation externe)
   useEffect(() => {
-    if (urlType) {
-      setActiveProductType(urlType);
+    const path = pathname.replace(/^\/catalog\/?/, '') || '';
+    const segments = path ? path.split('/') : [];
+    if (segments.length === 0) {
+      setActiveProductType(null);
+      setSelectedSpecialty(null);
+      setSelectedItCategory(null);
+      return;
     }
-    if (urlSpecialty) {
-      setSelectedSpecialty(urlSpecialty);
-      setActiveProductType('medical_equipment');
+    if (segments[0] === 'mobilier') {
+      setActiveProductType('furniture');
+      setSelectedSpecialty(null);
+      setSelectedItCategory(null);
+      return;
     }
-    if (urlItCategory) {
-      setSelectedItCategory(urlItCategory);
+    if (segments[0] === 'informatique') {
       setActiveProductType('it_equipment');
+      setSelectedSpecialty(null);
+      if (segments[1]) {
+        const cat = itCategories.find((c: ItCategory) => (c.slug || c.id) === segments[1]);
+        setSelectedItCategory(cat?.id || null);
+      } else {
+        setSelectedItCategory(null);
+      }
+      return;
     }
-  }, [urlType, urlSpecialty, urlItCategory]);
+    const specialty = specialties.find((s: Specialty) => slugify(s.name) === segments[0]);
+    if (specialty) {
+      setActiveProductType('medical_equipment');
+      setSelectedSpecialty(specialty.id);
+      setSelectedItCategory(null);
+    }
+  }, [pathname, itCategories, specialties]);
+
+  const getCatalogPath = (type: string | null, specialtyId: string | null, itCategoryId: string | null) => {
+    if (!type) return '/catalog';
+    if (type === 'furniture') return '/catalog/mobilier';
+    if (type === 'it_equipment') {
+      if (itCategoryId) {
+        const cat = itCategories.find((c: ItCategory) => c.id === itCategoryId);
+        return cat ? `/catalog/informatique/${cat.slug || cat.id}` : '/catalog/informatique';
+      }
+      return '/catalog/informatique';
+    }
+    if (type === 'medical_equipment' && specialtyId) {
+      const spec = specialties.find((s: Specialty) => s.id === specialtyId);
+      return spec ? `/catalog/${slugify(spec.name)}` : '/catalog';
+    }
+    return '/catalog';
+  };
 
   // Close dropdowns when clicking outside (desktop only)
   useEffect(() => {
@@ -173,6 +233,8 @@ export default function CatalogClient({
   });
 
   const handleSpecialtySelect = (specialtyId: string | null) => {
+    const path = getCatalogPath(specialtyId ? 'medical_equipment' : null, specialtyId, null);
+    router.push(path);
     setSelectedSpecialty(specialtyId);
     setSelectedItCategory(null);
     setActiveProductType(specialtyId ? 'medical_equipment' : null);
@@ -181,6 +243,8 @@ export default function CatalogClient({
   };
 
   const handleItCategorySelect = (categoryId: string | null) => {
+    const path = getCatalogPath('it_equipment', null, categoryId);
+    router.push(path);
     setSelectedItCategory(categoryId);
     setSelectedSpecialty(null);
     setActiveProductType('it_equipment');
@@ -230,17 +294,17 @@ export default function CatalogClient({
   if (searchQuery.trim()) {
     // Combine all products
     const allProducts = [...allMedicalProducts, ...allItProducts, ...allFurnitureProducts];
-    // Filter by search query (accent-insensitive)
+    // Filter by search query (accent-insensitive) - uniquement dans le nom du produit
     searchResults = allProducts.filter(product => 
-      matchesSearch(product.name, searchQuery) ||
-      matchesSearch(product.reference, searchQuery) ||
-      matchesSearch(product.description, searchQuery) ||
-      matchesSearch(product.brands?.name, searchQuery)
+      matchesSearch(product.name, searchQuery)
     );
   }
 
   // Count active filters for badge
   const activeFilterCount = [activeProductType, selectedSpecialty, selectedItCategory].filter(Boolean).length;
+
+  // Path catalogue actuel pour les liens (catégorie, produit)
+  const catalogPath = getCatalogPath(activeProductType, selectedSpecialty, selectedItCategory);
 
   // Lock body scroll when filter sheet is open
   useEffect(() => {
@@ -314,6 +378,8 @@ export default function CatalogClient({
       {/* Mobilier */}
       <button
         onClick={() => {
+          const path = activeProductType === 'furniture' ? '/catalog' : '/catalog/mobilier';
+          router.push(path);
           setActiveProductType(activeProductType === 'furniture' ? null : 'furniture');
           setSelectedSpecialty(null);
           setSelectedItCategory(null);
@@ -527,9 +593,9 @@ export default function CatalogClient({
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
-                      <p className="text-[9px] text-gray-500">à partir de</p>
-                      <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € <span className="font-normal text-gray-500">/mois</span>
+                      <p className="text-[9px] text-gray-500">A partir de :</p>
+                      <p className="text-[10px] lg:text-[11px] font-bold text-marlon-green">
+                        {monthlyPrice.toFixed(2)} € TTC /mois
                       </p>
                     </div>
                   </div>
@@ -583,9 +649,9 @@ export default function CatalogClient({
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
-                      <p className="text-[9px] text-gray-500">à partir de</p>
-                      <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € <span className="font-normal text-gray-500">/mois</span>
+                      <p className="text-[9px] text-gray-500">A partir de :</p>
+                      <p className="text-[10px] lg:text-[11px] font-bold text-marlon-green">
+                        {monthlyPrice.toFixed(2)} € TTC /mois
                       </p>
                     </div>
                   </div>
@@ -604,7 +670,11 @@ export default function CatalogClient({
           {filteredCategories.map((category) => (
             <Link
               key={category.id}
-              href={`/catalog/category/${category.slug || category.id}`}
+              href={activeProductType === 'medical_equipment' && selectedSpecialty
+  ? `/catalog/${slugify(specialties.find(s => s.id === selectedSpecialty)?.name || '')}/${category.slug || category.id}`
+  : activeProductType === 'it_equipment'
+  ? `/catalog/informatique/${(category as ItCategory).slug || category.id}`
+  : `/catalog/category/${category.slug || category.id}`}
               className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
             >
               <div className="relative w-full aspect-square bg-white flex items-center justify-center p-2">

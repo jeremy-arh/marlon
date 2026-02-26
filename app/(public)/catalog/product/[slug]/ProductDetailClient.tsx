@@ -65,6 +65,8 @@ interface ProductDetailClientProps {
   specialtyId: string | null;
   specialtyName: string | null;
   itCategoryId: string | null;
+  hasUrlFilters?: boolean;
+  catalogPath?: string;
   coefficient: number;
   currentMonthlyPrice: number;
   cheapestMonthlyPrice: number | null;
@@ -94,6 +96,8 @@ export default function ProductDetailClient({
   specialtyId,
   specialtyName,
   itCategoryId,
+  hasUrlFilters = false,
+  catalogPath = '/catalog',
   coefficient,
   currentMonthlyPrice,
   cheapestMonthlyPrice,
@@ -164,7 +168,7 @@ export default function ProductDetailClient({
     });
 
     if (matchingSibling && matchingSibling.id !== product.id) {
-      // Navigate to the matching sibling's product page
+      // Navigate to the matching sibling's product page (préserver les params URL)
       router.push(`/catalog/product/${matchingSibling.slug || matchingSibling.id}`);
     }
     // If no match found, do nothing (stay on current page)
@@ -249,13 +253,13 @@ export default function ProductDetailClient({
     { icon: 'mdi:package-variant', text: 'Location de l\'équipement' },
     { icon: 'mdi:cash-check', text: 'Financement simple et rapide' },
     { icon: 'mdi:shield-check', text: 'Garantie Premium Marlon' },
-    { icon: 'mdi:cog-outline', text: 'Accès à la gestion de vos équipement' },
+    { icon: 'mdi:cog-outline', text: 'Accès à la gestion de vos équipements' },
     { icon: 'mdi:truck-delivery', text: 'Livraison partout en France' },
   ];
 
   return (
     <div className="p-4 lg:p-8 pb-28 lg:pb-8">
-      <PageHeader title="Commander" />
+      <PageHeader title="" />
 
       {/* Breadcrumb */}
       <div className="mb-4 lg:mb-6 flex items-center gap-2 text-sm overflow-x-auto">
@@ -267,7 +271,7 @@ export default function ProductDetailClient({
           <span>Retour</span>
         </Link>
         <span className="text-gray-300 hidden sm:inline">|</span>
-        {productType && (
+        {hasUrlFilters && productType && (
           <>
             <Link 
               href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itCategoryId ? `&itCategory=${itCategoryId}` : ''}`}
@@ -340,28 +344,17 @@ export default function ProductDetailClient({
           </div>
 
           {/* Right: Product details */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             {/* Price and add to cart - Desktop only (inline) */}
-            <div className="hidden lg:flex items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
-              <div>
-                {hasVariants ? (
-                  <>
-                    <span className="text-gray-600">Prix : </span>
-                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € TTC</span>
-                    <span className="text-gray-600"> /mois</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-gray-600">A partir de : </span>
-                    <span className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € TTC</span>
-                    <span className="text-gray-600"> /mois</span>
-                  </>
-                )}
+            <div className="hidden lg:flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
+              <div className="min-w-0">
+                <p className="text-gray-600 text-sm">A partir de :</p>
+                <p className="text-xl font-bold text-gray-900">{displayPrice.toFixed(2)} € TTC /mois</p>
               </div>
               <button
                 onClick={handleAddToCart}
                 disabled={addingToCart || addedToCart}
-                className={`flex items-center gap-2 px-6 py-2.5 font-medium rounded-full transition-colors disabled:cursor-not-allowed flex-shrink-0 ${
+                className={`flex items-center gap-2 px-6 py-2.5 font-medium rounded-full transition-colors disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap ${
                   addedToCart 
                     ? 'bg-green-600 text-white' 
                     : 'bg-marlon-green text-white hover:bg-[#00A870] disabled:opacity-50'
@@ -492,9 +485,9 @@ export default function ProductDetailClient({
                       <h3 className="text-sm font-medium text-[#1a365d] leading-tight line-clamp-2 mb-1">
                         {relatedProduct.name}
                       </h3>
-                      <p className="text-xs text-gray-500">à partir de</p>
+                      <p className="text-xs text-gray-500">A partir de :</p>
                       <p className="text-sm font-bold text-marlon-green">
-                        {relatedPrice.toFixed(2)}€ TTC <span className="font-normal text-gray-500">/mois</span>
+                        {relatedPrice.toFixed(2)} € TTC /mois
                       </p>
                     </div>
                   </Link>
@@ -520,12 +513,8 @@ export default function ProductDetailClient({
       <div className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-4 py-3 z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] text-gray-500 leading-none mb-0.5">
-              {hasVariants ? 'Prix' : 'A partir de'}
-            </p>
-            <p className="text-lg font-bold text-gray-900 leading-tight">
-              {displayPrice.toFixed(2)} € <span className="text-sm font-normal text-gray-500">TTC /mois</span>
-            </p>
+            <p className="text-[11px] text-gray-500 leading-none mb-0.5">A partir de :</p>
+            <p className="text-lg font-bold text-gray-900 leading-tight">{displayPrice.toFixed(2)} € TTC /mois</p>
           </div>
           <button
             onClick={handleAddToCart}

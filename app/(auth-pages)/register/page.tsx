@@ -52,6 +52,31 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
+    // Validation des champs obligatoires
+    if (!firstName?.trim()) {
+      setError('Le prénom est requis');
+      return;
+    }
+    if (!lastName?.trim()) {
+      setError('Le nom est requis');
+      return;
+    }
+    if (!email?.trim()) {
+      setError("L'email est requis");
+      return;
+    }
+    if (!phone?.trim()) {
+      setError('Le téléphone est requis');
+      return;
+    }
+    if (!profession?.trim()) {
+      setError('La spécialité est requise');
+      return;
+    }
+    if (!organizationName?.trim()) {
+      setError("Le nom de l'organisation est requis");
+      return;
+    }
     if (!acceptTerms) {
       setError('Vous devez accepter la politique de confidentialité');
       return;
@@ -120,7 +145,7 @@ export default function RegisterPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Nom
+                      Nom <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="lastName"
@@ -135,7 +160,7 @@ export default function RegisterPage() {
                   </div>
                   <div>
                     <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Prénom
+                      Prénom <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="firstName"
@@ -153,7 +178,7 @@ export default function RegisterPage() {
                 {/* Numéro de téléphone */}
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Numéro de téléphone
+                    Numéro de téléphone <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="phone"
@@ -167,10 +192,10 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Profession (dropdown) */}
+                {/* Spécialité (dropdown) */}
                 <div>
                   <label htmlFor="profession" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Profession
+                    Spécialité <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <select
@@ -183,7 +208,7 @@ export default function RegisterPage() {
                       disabled={loadingSpecialties}
                     >
                       <option value="">
-                        {loadingSpecialties ? 'Chargement...' : 'Sélectionnez votre profession'}
+                        {loadingSpecialties ? 'Chargement...' : 'Sélectionnez votre spécialité'}
                       </option>
                       {specialties.map((specialty) => (
                         <option key={specialty.id} value={specialty.id}>
@@ -217,7 +242,7 @@ export default function RegisterPage() {
                 {/* Email */}
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Email professionnel
+                    Email professionnel <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="email"

@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendSignupNotificationToAdmins } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password, organizationName, firstName, lastName, phone, profession } = body;
+
+    // Validation des champs obligatoires
+    if (!firstName?.trim()) {
+      return NextResponse.json({ error: 'Le prénom est requis' }, { status: 400 });
+    }
+    if (!lastName?.trim()) {
+      return NextResponse.json({ error: 'Le nom est requis' }, { status: 400 });
+    }
+    if (!email?.trim()) {
+      return NextResponse.json({ error: "L'email est requis" }, { status: 400 });
+    }
+    if (!phone?.trim()) {
+      return NextResponse.json({ error: 'Le téléphone est requis' }, { status: 400 });
+    }
+    if (!profession?.trim()) {
+      return NextResponse.json({ error: 'La spécialité est requise' }, { status: 400 });
+    }
+    if (!organizationName?.trim()) {
+      return NextResponse.json({ error: "Le nom de l'organisation est requis" }, { status: 400 });
+    }
+    if (!password || password.length < 6) {
+      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 6 caractères' }, { status: 400 });
+    }
 
     // Use service client to bypass RLS for registration
     const supabase = createServiceClient();
@@ -29,11 +53,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create organization
+    // Create organization with contact info
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')
       .insert({
         name: organizationName,
+        email: email.trim(),
+        phone: phone.trim(),
+        contact_first_name: firstName.trim(),
+        contact_last_name: lastName.trim(),
+        contact_specialty_id: profession.trim() || null,
       })
       .select()
       .single();
@@ -78,6 +107,16 @@ export async function POST(request: NextRequest) {
         can_manage_employees: true,
         can_sign_contracts: true,
       });
+
+    // Notification aux admins (non bloquant)
+    sendSignupNotificationToAdmins({
+      email: email.trim(),
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
+      organizationName: organizationName?.trim(),
+      organizationId: orgData.id,
+      source: 'register',
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, user: authData.user });
   } catch (error: any) {

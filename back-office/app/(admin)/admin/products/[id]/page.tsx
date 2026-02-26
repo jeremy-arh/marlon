@@ -76,6 +76,9 @@ export default function ProductDetailPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showAddVariantModal, setShowAddVariantModal] = useState(false);
+  const [showDuplicateVariantModal, setShowDuplicateVariantModal] = useState(false);
+  const [variantToDuplicate, setVariantToDuplicate] = useState<ChildProduct | null>(null);
+  const [deletingVariantId, setDeletingVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (productId) {
@@ -193,6 +196,36 @@ export default function ProductDetailPage() {
     } catch (error) {
       console.error('Error deleting document:', error);
     }
+  };
+
+  const handleDeleteVariant = async (e: React.MouseEvent, variantId: string, variantName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la variante "${variantName}" ?`)) return;
+
+    setDeletingVariantId(variantId);
+    try {
+      const response = await fetch(`/api/admin/products/${variantId}`, { method: 'DELETE' });
+      const data = await response.json();
+
+      if (data.success) {
+        setProduct(prev => prev ? { ...prev, child_products: prev.child_products?.filter(v => v.id !== variantId) || [] } : null);
+      } else {
+        alert(data.error || 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      console.error('Error deleting variant:', error);
+      alert('Erreur lors de la suppression de la variante');
+    } finally {
+      setDeletingVariantId(null);
+    }
+  };
+
+  const handleDuplicateVariant = (e: React.MouseEvent, variant: ChildProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setVariantToDuplicate(variant);
+    setShowDuplicateVariantModal(true);
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -385,39 +418,65 @@ export default function ProductDetailPage() {
                 <div className="space-y-3">
                   {product.child_products.map((variant) => {
                     const variantImage = variant.product_images?.sort((a, b) => (a.order_index || 0) - (b.order_index || 0))?.[0]?.image_url;
+                    const isDeleting = deletingVariantId === variant.id;
                     return (
-                      <Link
+                      <div
                         key={variant.id}
-                        href={`/admin/products/${variant.id}`}
-                        className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
                       >
-                        <div className="flex-shrink-0 w-12 h-12 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
-                          {variantImage ? (
-                            <Image src={variantImage} alt={variant.name} width={48} height={48} className="object-contain" />
-                          ) : (
-                            <Icon icon="mdi:image-off" className="w-5 h-5 text-gray-300" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 truncate">{variant.name}</h4>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
-                            {variant.variant_data && Object.entries(variant.variant_data).map(([key, value]) => (
-                              <span key={key} className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
-                                {key}: {value}
-                              </span>
-                            ))}
+                        <Link href={`/admin/products/${variant.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex-shrink-0 w-12 h-12 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
+                            {variantImage ? (
+                              <Image src={variantImage} alt={variant.name} width={48} height={48} className="object-contain" />
+                            ) : (
+                              <Icon icon="mdi:image-off" className="w-5 h-5 text-gray-300" />
+                            )}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 truncate">{variant.name}</h4>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {variant.variant_data && Object.entries(variant.variant_data).map(([key, value]) => (
+                                <span key={key} className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
+                                  {key}: {value}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-medium text-gray-900">
+                              {variant.purchase_price_ht?.toFixed(2)} € HT
+                            </p>
+                            {variant.marlon_margin_percent && (
+                              <p className="text-xs text-gray-500">Marge: {variant.marlon_margin_percent}%</p>
+                            )}
+                          </div>
+                          <Icon icon="mdi:chevron-right" className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        </Link>
+                        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDuplicateVariant(e, variant)}
+                            disabled={isDeleting}
+                            className="p-2 text-gray-500 hover:text-marlon-green hover:bg-white rounded-lg transition-colors"
+                            title="Dupliquer la variante"
+                          >
+                            <Icon icon="mdi:content-copy" className="w-5 h-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteVariant(e, variant.id, variant.name)}
+                            disabled={isDeleting}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors"
+                            title="Supprimer la variante"
+                          >
+                            {isDeleting ? (
+                              <Icon icon="mdi:loading" className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <Icon icon="mdi:delete" className="w-5 h-5" />
+                            )}
+                          </button>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-medium text-gray-900">
-                            {variant.purchase_price_ht?.toFixed(2)} € HT
-                          </p>
-                          {variant.marlon_margin_percent && (
-                            <p className="text-xs text-gray-500">Marge: {variant.marlon_margin_percent}%</p>
-                          )}
-                        </div>
-                        <Icon icon="mdi:chevron-right" className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
@@ -533,6 +592,32 @@ export default function ProductDetailPage() {
           }}
           onCancel={() => setShowAddVariantModal(false)}
         />
+      </SideModal>
+
+      {/* Duplicate Variant Modal */}
+      <SideModal
+        isOpen={showDuplicateVariantModal}
+        onClose={() => {
+          setShowDuplicateVariantModal(false);
+          setVariantToDuplicate(null);
+        }}
+        title="Dupliquer la variante"
+      >
+        {variantToDuplicate && (
+          <ProductForm
+            parentProduct={product}
+            duplicateFrom={variantToDuplicate}
+            onSuccess={() => {
+              setShowDuplicateVariantModal(false);
+              setVariantToDuplicate(null);
+              loadProduct();
+            }}
+            onCancel={() => {
+              setShowDuplicateVariantModal(false);
+              setVariantToDuplicate(null);
+            }}
+          />
+        )}
       </SideModal>
 
       {/* Add Document Modal */}

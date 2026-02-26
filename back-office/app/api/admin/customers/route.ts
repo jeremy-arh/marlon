@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, siret, email, phone, address, city, postal_code, country } = body;
+    const { name, siret, email, phone, address, city, postal_code, country, contact_first_name, contact_last_name, contact_specialty_id } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Le nom est requis' }, { status: 400 });
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
         city: city || null,
         postal_code: postal_code || null,
         country: country || 'FR',
+        contact_first_name: contact_first_name || null,
+        contact_last_name: contact_last_name || null,
+        contact_specialty_id: contact_specialty_id || null,
       })
       .select()
       .single();

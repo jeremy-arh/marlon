@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { updatePassword } from '@/lib/utils/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,28 +10,57 @@ import { supabase } from '@/lib/supabase/client';
 
 const ILLUSTRATION_URL = 'https://qdnwppnrqpiquxboskos.supabase.co/storage/v1/object/public/static-assets/connection%201.svg';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [sessionReady, setSessionReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
-  // Fallback: si l'utilisateur arrive avec un hash (ancien lien email), traiter les tokens ici
+  // Traiter le hash (implicit flow) ou le code (PKCE flow) au chargement
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const hashParams = new URLSearchParams(hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
-      if (accessToken) {
-        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' }).then(() => {
+    const initSession = async () => {
+      const hash = window.location.hash;
+      const code = searchParams.get('code');
+
+      // Flux implicit : hash avec access_token
+      if (hash) {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        if (accessToken) {
+          const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
+          if (error) {
+            setInitError('Erreur lors de l\'authentification');
+            setSessionReady(true);
+            return;
+          }
           window.history.replaceState(null, '', window.location.pathname);
           setSessionReady(true);
-        });
+          return;
+        }
+      }
+
+      // Flux PKCE : code à échanger
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setInitError('Erreur lors de l\'authentification');
+          setSessionReady(true);
+          return;
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.delete('code');
+        window.history.replaceState(null, '', url.pathname + url.search);
+        setSessionReady(true);
         return;
       }
-    }
-    setSessionReady(true);
-  }, []);
+
+      setSessionReady(true);
+    };
+
+    initSession();
+  }, [searchParams]);
 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,10 +83,10 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
 
-    const { error } = await updatePassword(password);
+    const { error: updateError } = await updatePassword(password);
 
-    if (error) {
-      setError(error.message);
+    if (updateError) {
+      setError(updateError.message);
       setLoading(false);
     } else {
       router.push('/catalog');
@@ -68,6 +98,22 @@ export default function ResetPasswordPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 max-w-md text-center">
+          <p className="text-red-700 mb-4">{initError}</p>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-marlon-green text-white rounded-lg hover:bg-marlon-green/90 transition-colors"
+          >
+            Retour à la connexion
+          </Link>
+        </div>
       </div>
     );
   }
@@ -185,5 +231,17 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Icon icon="mdi:loading" className="h-8 w-8 animate-spin text-marlon-green" />
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

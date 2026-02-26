@@ -20,6 +20,7 @@ interface ProductDocument {
 interface ProductFormProps {
   product?: any;
   parentProduct?: any; // When creating a variant, the parent product is provided
+  duplicateFrom?: any; // When duplicating a variant, pre-fill form with this variant's data
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -33,7 +34,7 @@ const FILE_TYPE_OPTIONS = [
   { value: 'datasheet', label: 'Fiche technique' },
 ];
 
-export default function ProductForm({ product, parentProduct, onSuccess, onCancel }: ProductFormProps) {
+export default function ProductForm({ product, parentProduct, duplicateFrom, onSuccess, onCancel }: ProductFormProps) {
   const isVariantMode = !!parentProduct;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +52,19 @@ export default function ProductForm({ product, parentProduct, onSuccess, onCance
   const [productVariants, setProductVariants] = useState<any[]>([]);
   const [editingVariant, setEditingVariant] = useState<any | null>(null);
   const [leaserDurations, setLeaserDurations] = useState<any[]>([]);
-  // Source for initial values: product (edit mode) or parentProduct (variant creation)
-  const initSource = product || parentProduct;
+  // Source for initial values: product (edit mode), duplicateFrom (duplication), or parentProduct (variant creation)
+  const initSource = product || duplicateFrom || parentProduct;
+  // product_type: variants don't include it in API response, so use parentProduct when duplicating
+  const initialProductType = product?.product_type || duplicateFrom?.product_type || parentProduct?.product_type || '';
   const [formData, setFormData] = useState({
-    name: product?.name || '',
-    reference: product?.reference || '',
-    description: product?.description || '',
-    technical_info: product?.technical_info || '',
-    product_type: initSource?.product_type || '',
-    serial_number: product?.serial_number || '',
-    purchase_price_ht: product?.purchase_price_ht?.toString() || '',
-    marlon_margin_percent: product?.marlon_margin_percent?.toString() || initSource?.marlon_margin_percent?.toString() || '',
+    name: product?.name || (duplicateFrom?.name ? `${duplicateFrom.name} (copie)` : ''),
+    reference: product?.reference ?? '', // Empty when creating/duplicating to avoid unique constraint
+    description: product?.description || duplicateFrom?.description || '',
+    technical_info: product?.technical_info || duplicateFrom?.technical_info || '',
+    product_type: initialProductType,
+    serial_number: product?.serial_number || duplicateFrom?.serial_number || '',
+    purchase_price_ht: product?.purchase_price_ht?.toString() || duplicateFrom?.purchase_price_ht?.toString() || '',
+    marlon_margin_percent: product?.marlon_margin_percent?.toString() || duplicateFrom?.marlon_margin_percent?.toString() || initSource?.marlon_margin_percent?.toString() || '',
     supplier_id: initSource?.supplier_id || '',
     brand_id: initSource?.brand_id || '',
     default_leaser_id: initSource?.default_leaser_id || '',
@@ -69,7 +72,7 @@ export default function ProductForm({ product, parentProduct, onSuccess, onCance
     specialty_ids: [],
     images: [],
     variant_filter_ids: [],
-    variant_data: product?.variant_data || {},
+    variant_data: product?.variant_data || duplicateFrom?.variant_data || {},
   });
 
   useEffect(() => {
@@ -158,7 +161,15 @@ export default function ProductForm({ product, parentProduct, onSuccess, onCance
         setFormData(prev => ({ ...prev, variant_filter_ids: parentProduct.variant_filter_ids }));
       }
     }
-  }, [product, parentProduct]);
+
+    // Pre-fill images when duplicating a variant
+    if (duplicateFrom?.product_images && Array.isArray(duplicateFrom.product_images)) {
+      const sortedImages = [...duplicateFrom.product_images]
+        .sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+        .map((img: any) => img.image_url);
+      setFormData(prev => ({ ...prev, images: sortedImages }));
+    }
+  }, [product, parentProduct, duplicateFrom]);
 
   // Filtrer les catégories selon le type de produit
   useEffect(() => {
@@ -562,7 +573,11 @@ export default function ProductForm({ product, parentProduct, onSuccess, onCance
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs font-medium text-blue-800">
               <Icon icon="mdi:information" className="inline w-4 h-4 mr-1" />
-              Création d&apos;une variante de &quot;{parentProduct.name}&quot; — Renseignez le nom, prix, marge, images et les valeurs de filtres.
+              {duplicateFrom ? (
+                <>Duplication de la variante &quot;{duplicateFrom.name}&quot; — Modifiez les champs si nécessaire avant de créer.</>
+              ) : (
+                <>Création d&apos;une variante de &quot;{parentProduct.name}&quot; — Renseignez le nom, prix, marge, images et les valeurs de filtres.</>
+              )}
             </p>
           </div>
         )}

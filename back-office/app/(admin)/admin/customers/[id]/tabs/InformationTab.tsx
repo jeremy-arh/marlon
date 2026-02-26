@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Icon from '@/components/Icon';
 import Button from '@/components/Button';
 
@@ -13,6 +13,7 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [specialties, setSpecialties] = useState<{ id: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     name: organization.name || '',
     siret: organization.siret || '',
@@ -22,7 +23,36 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
     city: organization.city || '',
     postal_code: organization.postal_code || '',
     country: organization.country || 'FR',
+    contact_first_name: organization.contact_first_name || '',
+    contact_last_name: organization.contact_last_name || '',
+    contact_specialty_id: organization.contact_specialty_id || '',
   });
+
+  useEffect(() => {
+    fetch('/api/admin/specialties')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.data) setSpecialties(data.data);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (organization && !isEditing) {
+      setFormData({
+        name: organization.name || '',
+        siret: organization.siret || '',
+        email: organization.email || '',
+        phone: organization.phone || '',
+        address: organization.address || '',
+        city: organization.city || '',
+        postal_code: organization.postal_code || '',
+        country: organization.country || 'FR',
+        contact_first_name: organization.contact_first_name || '',
+        contact_last_name: organization.contact_last_name || '',
+        contact_specialty_id: organization.contact_specialty_id || '',
+      });
+    }
+  }, [organization?.id, organization?.name, organization?.email, organization?.phone, organization?.contact_first_name, organization?.contact_last_name, organization?.contact_specialty_id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +95,9 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
       city: organization.city || '',
       postal_code: organization.postal_code || '',
       country: organization.country || 'FR',
+      contact_first_name: organization.contact_first_name || '',
+      contact_last_name: organization.contact_last_name || '',
+      contact_specialty_id: organization.contact_specialty_id || '',
     });
     setIsEditing(false);
     setError(null);
@@ -72,6 +105,84 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+          {error}
+        </div>
+      )}
+      {/* Contact principal - Prénom, Nom, Email, Tel, Spécialité */}
+      <div className="rounded-lg bg-white border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-black">Contact principal</h2>
+          {!isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-black hover:text-gray-700"
+            >
+              <Icon icon="fluent:edit-24-filled" className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+        <div className="px-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+              <input
+                type="text"
+                value={formData.contact_first_name}
+                onChange={(e) => setFormData({ ...formData, contact_first_name: e.target.value })}
+                disabled={!isEditing}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+              <input
+                type="text"
+                value={formData.contact_last_name}
+                onChange={(e) => setFormData({ ...formData, contact_last_name: e.target.value })}
+                disabled={!isEditing}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                disabled={!isEditing}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                disabled={!isEditing}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Spécialité</label>
+              <select
+                value={formData.contact_specialty_id}
+                onChange={(e) => setFormData({ ...formData, contact_specialty_id: e.target.value })}
+                disabled={!isEditing}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              >
+                <option value="">— Sélectionner —</option>
+                {specialties.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-lg bg-white border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-black">Informations de l&apos;entreprise</h2>
@@ -85,12 +196,6 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
           )}
         </div>
         <div className="px-6 py-4">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-              {error}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -115,32 +220,6 @@ export default function InformationTab({ organization, onUpdate }: InformationTa
                   type="text"
                   value={formData.siret}
                   onChange={(e) => setFormData({ ...formData, siret: e.target.value })}
-                  disabled={!isEditing}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  disabled={!isEditing}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Téléphone
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   disabled={!isEditing}
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black disabled:bg-gray-100 disabled:cursor-not-allowed focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
                 />

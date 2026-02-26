@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendSignupNotificationToAdmins } from '@/lib/email';
 
 /**
  * Finalise l'invitation : crée le user_role (avec is_super_admin si applicable)
@@ -105,6 +106,22 @@ export async function POST(request: NextRequest) {
       .from('user_invitations')
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', inv.id);
+
+    // Notification aux admins (non bloquant)
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('name')
+      .eq('id', inv.organization_id)
+      .single();
+    const orgName = org?.name || user.user_metadata?.organization_name;
+    sendSignupNotificationToAdmins({
+      email: user.email || inv.email,
+      firstName: (body.firstName || user.user_metadata?.first_name)?.trim(),
+      lastName: (body.lastName || user.user_metadata?.last_name)?.trim(),
+      organizationName: orgName?.trim(),
+      organizationId: inv.organization_id,
+      source: 'invitation',
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

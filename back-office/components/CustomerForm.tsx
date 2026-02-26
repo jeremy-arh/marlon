@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/Button';
 import SearchableSelect from '@/components/SearchableSelect';
 
@@ -14,6 +14,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Customer
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [specialties, setSpecialties] = useState<{ id: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     name: customer?.name || '',
     siret: customer?.siret || '',
@@ -23,7 +24,18 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Customer
     city: customer?.city || '',
     postal_code: customer?.postal_code || '',
     country: customer?.country || 'FR',
+    contact_first_name: customer?.contact_first_name || '',
+    contact_last_name: customer?.contact_last_name || '',
+    contact_specialty_id: customer?.contact_specialty_id || '',
   });
+
+  useEffect(() => {
+    fetch('/api/admin/specialties')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.data) setSpecialties(data.data);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +74,9 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Customer
           city: '',
           postal_code: '',
           country: 'FR',
+          contact_first_name: '',
+          contact_last_name: '',
+          contact_specialty_id: '',
         });
         setError(null);
         setLoading(false);
@@ -105,6 +120,33 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Customer
           />
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="contact_first_name" className="mb-2 block text-sm font-medium text-black">
+              Prénom du contact
+            </label>
+            <input
+              id="contact_first_name"
+              type="text"
+              className="w-full rounded-md border border-[#525C6B] bg-white px-4 py-2.5 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              value={formData.contact_first_name}
+              onChange={(e) => setFormData({ ...formData, contact_first_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label htmlFor="contact_last_name" className="mb-2 block text-sm font-medium text-black">
+              Nom du contact
+            </label>
+            <input
+              id="contact_last_name"
+              type="text"
+              className="w-full rounded-md border border-[#525C6B] bg-white px-4 py-2.5 text-sm text-black placeholder-[#525C6B] focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+              value={formData.contact_last_name}
+              onChange={(e) => setFormData({ ...formData, contact_last_name: e.target.value })}
+            />
+          </div>
+        </div>
+
         <div>
           <label htmlFor="siret" className="mb-2 block text-sm font-medium text-black">
             SIRET
@@ -143,6 +185,23 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Customer
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="contact_specialty_id" className="mb-2 block text-sm font-medium text-black">
+            Spécialité du contact
+          </label>
+          <select
+            id="contact_specialty_id"
+            className="w-full rounded-md border border-[#525C6B] bg-white px-4 py-2.5 text-sm text-black focus:border-marlon-green focus:outline-none focus:ring-1 focus:ring-marlon-green"
+            value={formData.contact_specialty_id}
+            onChange={(e) => setFormData({ ...formData, contact_specialty_id: e.target.value })}
+          >
+            <option value="">— Sélectionner —</option>
+            {specialties.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
 
         <div>

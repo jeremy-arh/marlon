@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { matchesSearch } from '@/lib/utils/search';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -41,6 +41,8 @@ interface CategoryProductsClientProps {
   specialtyId?: string | null;
   specialtyName?: string | null;
   itCategoryId?: string | null;
+  hasUrlFilters?: boolean;
+  catalogPath?: string;
 }
 
 const getProductTypeLabel = (type: string): string => {
@@ -66,6 +68,8 @@ export default function CategoryProductsClient({
   specialtyId,
   specialtyName,
   itCategoryId,
+  hasUrlFilters = false,
+  catalogPath = '/catalog',
 }: CategoryProductsClientProps) {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<string>('');
@@ -73,6 +77,19 @@ export default function CategoryProductsClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fermer le dropdown des marques au clic extérieur
+  useEffect(() => {
+    if (!isBrandDropdownOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
+        setIsBrandDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isBrandDropdownOpen]);
 
   // Count active filters for badge
   const activeFilterCount = [selectedBrands.length > 0, minPrice, maxPrice].filter(Boolean).length;
@@ -104,12 +121,7 @@ export default function CategoryProductsClient({
     .filter((product) => {
     // Search filter (accent-insensitive)
     if (searchQuery.trim()) {
-      const matchesName = matchesSearch(product.name, searchQuery);
-      const matchesRef = matchesSearch(product.reference, searchQuery);
-      const matchesBrand = matchesSearch(product.brands?.name, searchQuery);
-      if (!matchesName && !matchesRef && !matchesBrand) {
-        return false;
-      }
+      if (!matchesSearch(product.name, searchQuery)) return false;
     }
 
     // Brand filter
@@ -166,24 +178,24 @@ export default function CategoryProductsClient({
           <span>Retour</span>
         </Link>
         <span className="text-gray-300">|</span>
-        {productType && (
+        {hasUrlFilters && productType ? (
           <>
             <Link 
-              href={`/catalog?type=${productType}${specialtyId ? `&specialty=${specialtyId}` : ''}${itCategoryId ? `&itCategory=${itCategoryId}` : ''}`}
+              href={catalogPath}
               className="text-gray-500 hover:text-marlon-green transition-colors"
             >
               {specialtyName || getProductTypeLabel(productType)}
             </Link>
             <Icon icon="mdi:chevron-right" className="h-4 w-4 text-gray-400" />
           </>
-        )}
+        ) : null}
         <span className="text-gray-700 font-medium">{category.name}</span>
       </div>
 
       {/* Desktop Filters bar */}
       <div className="hidden lg:flex items-center gap-4 mb-8 flex-wrap">
         {/* Brand filter */}
-        <div className="relative">
+        <div className="relative" ref={brandDropdownRef}>
           <button
             onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
             className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 min-w-[180px]"
@@ -396,9 +408,9 @@ export default function CategoryProductsClient({
                       {product.name}
                     </h3>
                     <div className="mt-auto text-center">
-                      <p className="text-[9px] text-gray-500">à partir de</p>
-                      <p className="text-[10px] lg:text-[11px] font-bold text-gray-900">
-                        {monthlyPrice.toFixed(2)} € <span className="font-normal text-gray-500">/mois</span>
+                      <p className="text-[9px] text-gray-500">A partir de :</p>
+                      <p className="text-[10px] lg:text-[11px] font-bold text-marlon-green">
+                        {monthlyPrice.toFixed(2)} € TTC /mois
                       </p>
                     </div>
                   </div>

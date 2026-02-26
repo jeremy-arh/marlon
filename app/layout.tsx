@@ -42,6 +42,18 @@ export default function RootLayout({
         <Script id="auth-hash-redirect" strategy="beforeInteractive">
           {AUTH_HASH_SCRIPT}
         </Script>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=AW-16781949694"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'AW-16781949694');
+          `}
+        </Script>
       </head>
       <body>
         <script dangerouslySetInnerHTML={{ __html: AUTH_HASH_SCRIPT }} />

@@ -18,6 +18,7 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
   const [editingDoc, setEditingDoc] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({ name: '', description: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const loadDocuments = async () => {
     try {
@@ -34,6 +35,19 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
   useEffect(() => {
     loadDocuments();
   }, [orderId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      setError('Veuillez sélectionner un fichier');
+      return;
+    }
+    if (!formData.name.trim()) {
+      setError('Le nom du document est requis');
+      return;
+    }
+    await handleFileSelect(selectedFile);
+  };
 
   const handleFileSelect = async (file: File) => {
     setLoading(true);
@@ -77,6 +91,8 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
       await loadDocuments();
       setIsModalOpen(false);
       setFormData({ name: '', description: '' });
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
     } finally {
@@ -111,6 +127,8 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
           onClick={() => {
             setEditingDoc(null);
             setFormData({ name: '', description: '' });
+            setSelectedFile(null);
+            setError(null);
             setIsModalOpen(true);
           }}
           variant="primary"
@@ -176,10 +194,12 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
         onClose={() => {
           setIsModalOpen(false);
           setFormData({ name: '', description: '' });
+          setSelectedFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }}
         title="Ajouter un document"
       >
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-black">
               Nom du document <span className="text-red-500">*</span>
@@ -214,17 +234,42 @@ export default function DocumentsSubTab({ orderId, initialDocuments = [] }: Docu
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  setSelectedFile(file);
                   if (!formData.name) {
-                    setFormData({ ...formData, name: file.name });
+                    setFormData({ ...formData, name: file.name.replace(/\.[^/.]+$/, '') });
                   }
-                  handleFileSelect(file);
+                } else {
+                  setSelectedFile(null);
                 }
               }}
               className="w-full rounded-md border border-[#525C6B] bg-white px-4 py-2.5 text-sm text-black"
-              required
             />
+            {selectedFile && (
+              <p className="mt-1 text-xs text-gray-500">{selectedFile.name}</p>
+            )}
           </div>
-        </div>
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsModalOpen(false);
+                setFormData({ name: '', description: '' });
+                setSelectedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading || !formData.name.trim() || !selectedFile}
+            >
+              {loading ? 'Envoi...' : 'Ajouter'}
+            </Button>
+          </div>
+        </form>
       </SideModal>
     </div>
   );

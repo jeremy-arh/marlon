@@ -138,21 +138,8 @@ export default async function ProductPage({
   let specialtyId: string | null = null;
   let specialtyName: string | null = null;
 
-  if (category && productType === 'medical_equipment') {
-    const { data: categorySpecialty } = await supabase
-      .from('category_specialties')
-      .select('specialty_id, specialties(name)')
-      .eq('category_id', category.id)
-      .limit(1)
-      .single();
-
-    if (categorySpecialty) {
-      specialtyId = categorySpecialty.specialty_id;
-      if (categorySpecialty.specialties) {
-        specialtyName = (categorySpecialty.specialties as any).name;
-      }
-    }
-  }
+  // Page produit : pas de filtre dans l'URL (paths catalogue)
+  const hasUrlFilters = false;
 
   // For IT products: use category id for breadcrumb link (dropdown now shows categories)
   const itCategoryId = category && productType === 'it_equipment' ? category.id : null;
@@ -247,6 +234,8 @@ export default async function ProductPage({
       specialtyId={specialtyId}
       specialtyName={specialtyName}
       itCategoryId={itCategoryId}
+      hasUrlFilters={hasUrlFilters}
+      catalogPath="/catalog"
       coefficient={Number(coefficient)}
       currentMonthlyPrice={currentMonthlyPrice}
       cheapestMonthlyPrice={cheapestMonthlyPrice}

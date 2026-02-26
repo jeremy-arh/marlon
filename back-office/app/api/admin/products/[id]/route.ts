@@ -69,7 +69,7 @@ export async function GET(
     const { data: childProducts } = await serviceClient
       .from('products')
       .select(`
-        id, name, reference, purchase_price_ht, marlon_margin_percent, variant_data,
+        id, name, reference, description, technical_info, purchase_price_ht, marlon_margin_percent, product_type, variant_data,
         product_images(image_url, order_index)
       `)
       .eq('parent_product_id', params.id)

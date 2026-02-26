@@ -11,6 +11,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [userCountMap, setUserCountMap] = useState<any>({});
+  const [specialtyMap, setSpecialtyMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,10 +23,17 @@ export default function CustomersPage() {
 
   const loadCustomers = async () => {
     try {
-      const [orgsRes, rolesRes] = await Promise.all([
+      const [orgsRes, rolesRes, specialtiesRes] = await Promise.all([
         fetch('/api/admin/customers/list').then(r => r.json()),
         fetch('/api/admin/user-roles').then(r => r.json()),
+        fetch('/api/admin/specialties').then(r => r.json()),
       ]);
+
+      if (specialtiesRes.success && specialtiesRes.data) {
+        const map: Record<string, string> = {};
+        specialtiesRes.data.forEach((s: { id: string; name: string }) => { map[s.id] = s.name; });
+        setSpecialtyMap(map);
+      }
 
       if (orgsRes.success) {
         setOrganizations(orgsRes.data || []);
@@ -88,6 +96,8 @@ export default function CustomersPage() {
   const filteredOrganizations = organizations.filter((org: any) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    const contactName = [org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ').toLowerCase();
+    const specialtyName = (org.contact_specialty?.name || specialtyMap[org.contact_specialty_id] || '').toLowerCase();
     return (
       org.name?.toLowerCase().includes(q) ||
       org.siret?.toLowerCase().includes(q) ||
@@ -95,7 +105,9 @@ export default function CustomersPage() {
       org.phone?.toLowerCase().includes(q) ||
       org.address?.toLowerCase().includes(q) ||
       org.city?.toLowerCase().includes(q) ||
-      org.postal_code?.toLowerCase().includes(q)
+      org.postal_code?.toLowerCase().includes(q) ||
+      contactName.includes(q) ||
+      specialtyName.includes(q)
     );
   });
 
@@ -137,6 +149,8 @@ export default function CustomersPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spécialité</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SIRET</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
@@ -154,6 +168,12 @@ export default function CustomersPage() {
                     onClick={() => router.push(`/admin/customers/${org.id}`)}
                   >
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-black">{org.name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ') || '-'}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {org.contact_specialty?.name || specialtyMap[org.contact_specialty_id] || '-'}
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{org.siret || '-'}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{org.email || '-'}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{org.phone || '-'}</td>
@@ -190,7 +210,7 @@ export default function CustomersPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                     Aucun client trouvé
                   </td>
                 </tr>

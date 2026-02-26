@@ -191,7 +191,7 @@ export default function PageHeader({ title }: PageHeaderProps) {
             </div>
 
             {/* Desktop: Title */}
-            <h1 className="hidden lg:block text-2xl font-bold text-marlon-text">{title}</h1>
+            {title ? <h1 className="hidden lg:block text-2xl font-bold text-marlon-text">{title}</h1> : <div className="hidden lg:block flex-1" />}
 
             {/* Right side */}
             <div className="flex items-center gap-2 lg:gap-4">
