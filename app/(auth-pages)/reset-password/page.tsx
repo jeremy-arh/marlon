@@ -56,6 +56,11 @@ function ResetPasswordContent() {
         return;
       }
 
+      // Session déjà établie (ex: redirection depuis auth/callback)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setInitError('Lien invalide ou expiré. Veuillez demander un nouveau lien de réinitialisation.');
+      }
       setSessionReady(true);
     };
 

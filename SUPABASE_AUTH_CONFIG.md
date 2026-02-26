@@ -8,9 +8,9 @@ Les liens d'invitation redirigent vers `/catalog` au lieu de `/complete-invitati
 1. Allez dans **Supabase Dashboard** → **Authentication** → **URL Configuration**
 2. Vérifiez que **Site URL** = `https://app.marlon.fr` (sans `/catalog`)
 3. Dans **Redirect URLs**, ajoutez :
-   - `https://app.marlon.fr/auth/callback`
+   - `https://app.marlon.fr/auth/callback` (obligatoire : invitations, reset password, magic link)
    - `https://app.marlon.fr/complete-invitation`
-   - `https://app.marlon.fr/reset-password` (réinitialisation mot de passe)
+   - `https://app.marlon.fr/reset-password`
    - `https://app.marlon.fr/catalog` (pour les anciens liens)
 
 Ou utilisez un wildcard : `https://app.marlon.fr/**`
@@ -20,7 +20,7 @@ Ou utilisez un wildcard : `https://app.marlon.fr/**`
 ## Après configuration
 
 - **Nouvelles invitations** : redirigeront vers `/auth/callback` puis `/complete-invitation`
-- **Réinitialisation mot de passe** : redirigera directement vers `/reset-password`
+- **Réinitialisation mot de passe** : Supabase redirige vers `/auth/callback` qui établit la session puis envoie vers `/reset-password`
 - **Anciens liens** (vers `/catalog`) : le script inline redirige automatiquement vers `/auth/callback`
 
 ## Notifications admins à l'inscription
