@@ -572,6 +572,19 @@ export default function CheckoutPage() {
         throw new Error(data.error || 'Erreur lors de la création de la commande');
       }
 
+      // Envoyer l'événement GTM new_lead pour le tracking
+      const orderValue = totals.monthlyTTC * selectedDuration;
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({
+          event: 'new_lead',
+          order_id: data.order.id,
+          order_value: orderValue,
+          currency: 'EUR',
+          order_items_count: totals.itemCount,
+          leasing_duration_months: selectedDuration,
+        });
+      }
+
       router.push(`/orders/${data.order.id}/confirmation`);
     } catch (error: any) {
       setValidationErrors([error.message]);
